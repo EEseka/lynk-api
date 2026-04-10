@@ -26,8 +26,16 @@ class UserService(
 ) {
     private val logger = LoggerFactory.getLogger(UserService::class.java)
 
+    private val reservedUsernames = setOf("admin", "support", "system", "api", "lynk", "root", "null")
+
     fun isUsernameAvailable(username: String): Boolean {
-        return !userRepository.existsByUsername(username.trim())
+        val normalizedUsername = username.trim().lowercase()
+
+        if (reservedUsernames.contains(normalizedUsername)) {
+            return false
+        }
+
+        return !userRepository.existsByUsername(normalizedUsername)
     }
 
     fun generateProfilePictureUploadUrl(
@@ -44,14 +52,18 @@ class UserService(
         displayName: String,
         profilePhotoUrl: String?
     ): User {
-        val username = username.trim()
-        val displayName = displayName.trim()
+        val normalizedUsername = username.trim().lowercase()
+        val cleanDisplayName = displayName.trim()
+
+        if (reservedUsernames.contains(normalizedUsername)) {
+            throw UserAlreadyExistsException() // Or create a custom ReservedUsernameException
+        }
 
         val userEntity = userRepository.findByIdOrNull(userId)
             ?: throw UserNotFoundException()
 
-        // Validate Username availability
-        if (userEntity.username != username && userRepository.existsByUsername(username)) {
+        // Validate Username availability against the normalized version
+        if (userEntity.username != normalizedUsername && userRepository.existsByUsername(normalizedUsername)) {
             throw UserAlreadyExistsException()
         }
 
@@ -68,8 +80,8 @@ class UserService(
 
         val savedUser = userRepository.save(
             userEntity.apply {
-                this.username = username
-                this.displayName = displayName
+                this.username = normalizedUsername
+                this.displayName = cleanDisplayName
                 this.profilePhotoUrl = profilePhotoUrl
             }
         )

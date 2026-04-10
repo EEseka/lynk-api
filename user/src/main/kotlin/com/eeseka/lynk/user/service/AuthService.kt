@@ -126,6 +126,12 @@ class AuthService(
         )
     }
 
+    @Scheduled(cron = "0 0 4 * * *")
+    @Transactional
+    fun cleanupExpiredRefreshTokens() {
+        refreshTokenRepository.deleteByExpiresAtLessThan(Instant.now())
+    }
+
     private fun generateAuthResponse(userEntity: UserEntity): AuthenticatedUser {
         val userId = userEntity.id!!
         val newAccessToken = jwtService.generateAccessToken(userId)
