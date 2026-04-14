@@ -52,26 +52,30 @@ class UserService(
         displayName: String,
         profilePhotoUrl: String?
     ): User {
+        val userEntity = userRepository.findByIdOrNull(userId) ?: throw UserNotFoundException()
+
         val normalizedUsername = username.trim().lowercase()
         val cleanDisplayName = displayName.trim()
 
-        if (reservedUsernames.contains(normalizedUsername)) {
-            throw UserAlreadyExistsException() // Or create a custom ReservedUsernameException
+        val isUsernameChanged = userEntity.username != normalizedUsername
+        val isDisplayNameChanged = userEntity.displayName != cleanDisplayName
+        val isPhotoChanged = userEntity.profilePhotoUrl != profilePhotoUrl
+
+        if (!isUsernameChanged && !isDisplayNameChanged && !isPhotoChanged) {
+            return userEntity.toUser()
         }
 
-        val userEntity = userRepository.findByIdOrNull(userId)
-            ?: throw UserNotFoundException()
-
-        // Validate Username availability against the normalized version
-        if (userEntity.username != normalizedUsername && userRepository.existsByUsername(normalizedUsername)) {
-            throw UserAlreadyExistsException()
+        if (isUsernameChanged) {
+            if (reservedUsernames.contains(normalizedUsername)) {
+                throw UserAlreadyExistsException()
+            }
+            if (userRepository.existsByUsername(normalizedUsername)) {
+                throw UserAlreadyExistsException()
+            }
         }
 
         // Validate Supabase URL (Allows Google URLs to pass safely)
-        if (profilePhotoUrl != null && profilePhotoUrl.contains("supabase.co") && !profilePhotoUrl.startsWith(
-                supabaseUrl
-            )
-        ) {
+        if (isPhotoChanged && profilePhotoUrl != null && profilePhotoUrl.contains("supabase.co") && !profilePhotoUrl.startsWith(supabaseUrl)) {
             throw InvalidProfilePictureException("Invalid profile picture URL.")
         }
 
@@ -87,7 +91,7 @@ class UserService(
         )
 
         // Safe Cleanup of the old file
-        if (oldPhotoUrl != null && oldPhotoUrl != profilePhotoUrl && oldPhotoUrl.startsWith(supabaseUrl)) {
+        if (isPhotoChanged && oldPhotoUrl != null && oldPhotoUrl.startsWith(supabaseUrl)) {
             try {
                 supabaseUserStorageService.deleteFile(oldPhotoUrl)
             } catch (e: Exception) {
