@@ -54,6 +54,7 @@ spring-rabbit-test = { module = "org.springframework.amqp:spring-rabbit-test", v
 spring-restdocs-mockmvc = { module = "org.springframework.restdocs:spring-restdocs-mockmvc" }
 spring-security-test = { module = "org.springframework.security:spring-security-test", version.ref = "springBoot" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+h2-database = { module = "com.h2database:h2" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -1,30 +1,32 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
+    alias(libs.plugins.kotlin.jpa)
+    id("java-library")
 }
 
 group = "com.eeseka"
-version = "0.0.1-SNAPSHOT"
+version = "unspecified"
 
 dependencies {
     implementation(project(":common"))
-    implementation(project(":user"))
 
     implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.data.jpa)
+
     implementation(libs.spring.boot.starter.security)
+    implementation(libs.spring.boot.starter.validation)
 
     implementation(libs.spring.boot.starter.data.redis)
     implementation(libs.spring.boot.starter.amqp)
     implementation(libs.spring.boot.starter.mail)
-
-    implementation(libs.kotlin.reflect)
+    implementation(libs.spring.boot.starter.thymeleaf)  // Email Templates
 
     runtimeOnly(libs.postgresql)
 
-    testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.kotlin.test.junit5)
-    // Provides the in-memory database exclusively for testing
-    testImplementation(libs.h2.database)
+    implementation(libs.jwt.api)
+    runtimeOnly(libs.jwt.impl)
+    runtimeOnly(libs.jwt.jackson)
+
+    implementation(libs.google.api.client)
 }

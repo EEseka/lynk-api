@@ -1,3 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db.nprfqkurgivwqjnzkemp.supabase.co:5432/postgres?sslmode=require
+    username: postgres
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  mail:
+    host: smtp-relay.brevo.com
+    username: a130b3001@smtp-brevo.com
+
+jwt:
+  expiration-minutes: 15
+
+lynk:
+  email:
+    url: "https://lynkapp.com"
+  rate-limit:
+    ip:
+      apply-limit: true
+
+nginx:
+  require-proxy: false
+
 logging:
   level:
     com.eeseka.lynk: INFO
