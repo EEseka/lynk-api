@@ -13,7 +13,6 @@ dependencies {
     implementation(project(":user"))
 
     implementation(libs.spring.boot.starter.web)
-//    implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.boot.starter.security)
 
     implementation(libs.spring.boot.starter.data.redis)
@@ -26,4 +25,6 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.kotlin.test.junit5)
+    // Provides the in-memory database exclusively for testing
+    testImplementation(libs.h2.database)
 }
