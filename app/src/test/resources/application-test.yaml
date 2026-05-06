@@ -42,3 +42,6 @@ lynk:
 
 supabase:
   service-key: dummy-supabase-key
+
+places:
+  api-key: dummy-places-key

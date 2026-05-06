@@ -11,6 +11,7 @@ version = "0.0.1-SNAPSHOT"
 dependencies {
     implementation(project(":common"))
     implementation(project(":user"))
+    implementation(project(":spot"))
 
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.security)

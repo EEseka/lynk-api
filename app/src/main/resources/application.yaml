@@ -4,10 +4,10 @@ spring:
 
   data:
     redis:
-      host: "redis-16281.c269.eu-west-1-3.ec2.cloud.redislabs.com"
+      host: "redis-13941.c3.eu-west-1-2.ec2.cloud.redislabs.com"
       password: ${REDIS_PASSWORD}
       username: "default"
-      port: 16281
+      port: 13941
       connect-timeout: 5000ms
       timeout: 2000ms
 
@@ -90,6 +90,10 @@ nginx:
 supabase:
   url: "https://nprfqkurgivwqjnzkemp.supabase.co"
   service-key: ${SUPABASE_SERVICE_KEY}
+
+places:
+  url: "https://places.googleapis.com/v1"
+  api-key: ${GOOGLE_PLACES_KEY}
 
 server:
   port: 8080

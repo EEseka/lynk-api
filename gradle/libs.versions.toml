@@ -1,6 +1,6 @@
 [versions]
-kotlin = "2.3.20"
-springBoot = "4.0.5"
+kotlin = "2.3.21"
+springBoot = "4.0.6"
 dependencyManagement = "1.1.7"
 
 jackson = "3.0.2"
@@ -8,8 +8,7 @@ jwt = "0.12.6"
 firebase = "9.5.0"
 coroutines = "1.8.0"
 
-googleApiClient = "2.8.1"
-googleAuth = "1.42.1"
+googleApiClient = "2.9.0"
 
 [libraries]
 # Spring Boot Starters
