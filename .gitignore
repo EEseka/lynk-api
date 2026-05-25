@@ -41,3 +41,5 @@ out/
 
 # Secret files
 *.env
+
+.DS_Store
