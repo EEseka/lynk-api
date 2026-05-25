@@ -102,6 +102,7 @@ class SpotService(
         before: Instant?,
         pageSize: Int,
         userId: UserId,
+        query: String? = null
     ): List<Spot> {
         // Saved spots are used for a list screen that needs few data.
         // It saves API costs to pull locally as there is no way to pass a list of IDs
@@ -109,6 +110,7 @@ class SpotService(
         val savedEntities = savedSpotRepository.findByUserIdBefore(
             userId = userId,
             before = before ?: Instant.now(),
+            query = query,
             pageable = PageRequest.of(0, pageSize)
         )
 

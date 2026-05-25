@@ -33,15 +33,15 @@ class SpotController(
 
     @GetMapping("/trending")
     fun getTrendingSpots(
-        @RequestParam("latitude")
+        @RequestParam
         @DecimalMin("-90.0") @DecimalMax("90.0")
         latitude: Double,
 
-        @RequestParam("longitude")
+        @RequestParam
         @DecimalMin("-180.0") @DecimalMax("180.0")
         longitude: Double,
 
-        @RequestParam("limit", required = false)
+        @RequestParam(required = false)
         @Min(1) @Max(MAX_TRENDING_LIMIT.toLong())
         limit: Int = DEFAULT_TRENDING_LIMIT
     ): List<SpotDto> {
@@ -55,28 +55,28 @@ class SpotController(
 
     @GetMapping("/search")
     fun searchSpots(
-        @RequestParam("latitude")
+        @RequestParam
         @DecimalMin("-90.0") @DecimalMax("90.0")
         latitude: Double,
 
-        @RequestParam("longitude")
+        @RequestParam
         @DecimalMin("-180.0") @DecimalMax("180.0")
         longitude: Double,
 
-        @RequestParam("query", required = false)
+        @RequestParam(required = false)
         query: String? = null,
 
-        @RequestParam("category", required = false)
+        @RequestParam(required = false)
         category: SpotCategory? = null,
 
-        @RequestParam("priceLevel", required = false)
+        @RequestParam(required = false)
         priceLevel: PriceLevel? = null,
 
-        @RequestParam("radiusInMeters", required = false)
+        @RequestParam(required = false)
         @Min(1) @Max(MAX_SEARCH_RADIUS_METERS.toLong())
         radiusInMeters: Int = DEFAULT_SEARCH_RADIUS_IN_METERS,
 
-        @RequestParam("nextPageToken", required = false)
+        @RequestParam(required = false)
         nextPageToken: String? = null
     ): PaginatedSpotsDto {
         return spotService.searchSpots(
@@ -125,17 +125,21 @@ class SpotController(
 
     @GetMapping("/saved")
     fun getSavedSpots(
-        @RequestParam("before", required = false)
+        @RequestParam(required = false)
         before: Instant? = null,
 
-        @RequestParam("pageSize", required = false)
+        @RequestParam(required = false)
         @Min(1) @Max(MAX_PAGE_SIZE.toLong())
-        pageSize: Int = DEFAULT_PAGE_SIZE
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+
+        @RequestParam(required = false)
+        query: String? = null
     ): List<SpotDto> {
         return spotService.getSavedSpots(
             before = before,
             pageSize = pageSize,
-            userId = requestUserId,
+            query = query,
+            userId = requestUserId
         ).map { it.toSpotDto() }
     }
 }
