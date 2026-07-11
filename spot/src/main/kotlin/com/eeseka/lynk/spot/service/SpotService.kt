@@ -4,8 +4,8 @@ import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.spot.domain.exception.SpotNotFoundException
 import com.eeseka.lynk.spot.domain.model.PaginatedSpots
 import com.eeseka.lynk.spot.domain.model.Spot
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.database.entities.SavedSpotEntity
 import com.eeseka.lynk.spot.infra.database.mappers.toSpot
 import com.eeseka.lynk.spot.infra.database.repositories.SavedSpotRepository

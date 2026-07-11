@@ -7,7 +7,7 @@ import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.common.service.JwtService
 import com.eeseka.lynk.user.domain.exception.UserNotFoundException
 import com.eeseka.lynk.user.domain.model.AuthenticatedUser
-import com.eeseka.lynk.user.domain.type.AuthProvider
+import com.eeseka.lynk.user.domain.model.AuthProvider
 import com.eeseka.lynk.user.infra.database.entities.RefreshTokenEntity
 import com.eeseka.lynk.user.infra.database.entities.UserEntity
 import com.eeseka.lynk.user.infra.database.mappers.toUser
@@ -52,6 +52,7 @@ class AuthService(
                 UserEvent.Created(
                     userId = newUser.id!!,
                     email = googleUser.email,
+                    displayName = googleUser.displayName
                 )
             )
             newUser
@@ -115,7 +116,7 @@ class AuthService(
         )
     }
 
-    @Scheduled(cron = "0 0 3 * * *")
+    @Scheduled(cron = "0 0 4 * * *")
     @Transactional
     fun cleanupStaleGuestAccounts() {
         val thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS)
@@ -126,7 +127,7 @@ class AuthService(
         )
     }
 
-    @Scheduled(cron = "0 0 4 * * *")
+    @Scheduled(cron = "0 0 5 * * *")
     @Transactional
     fun cleanupExpiredRefreshTokens() {
         refreshTokenRepository.deleteByExpiresAtLessThan(Instant.now())

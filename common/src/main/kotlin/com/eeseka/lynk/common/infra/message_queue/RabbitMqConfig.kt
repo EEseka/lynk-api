@@ -67,12 +67,29 @@ class RabbitMqConfig {
     )
 
     @Bean
+    fun hangoutUserEventsQueue() = Queue(
+        MessageQueues.HANGOUT_USER_EVENTS,
+        true
+    )
+
+    @Bean
     fun notificationUserEventsBinding(
         notificationUserEventsQueue: Queue,
         userExchange: TopicExchange,
     ): Binding {
         return BindingBuilder
             .bind(notificationUserEventsQueue)
+            .to(userExchange)
+            .with("user.*")
+    }
+
+    @Bean
+    fun hangoutUserEventsBinding(
+        hangoutUserEventsQueue: Queue,
+        userExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(hangoutUserEventsQueue)
             .to(userExchange)
             .with("user.*")
     }

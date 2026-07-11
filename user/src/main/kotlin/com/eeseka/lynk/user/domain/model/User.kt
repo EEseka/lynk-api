@@ -1,7 +1,6 @@
 package com.eeseka.lynk.user.domain.model
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.user.domain.type.AuthProvider
 
 data class User(
     val id: UserId,

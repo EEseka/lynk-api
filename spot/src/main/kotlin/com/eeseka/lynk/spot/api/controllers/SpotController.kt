@@ -5,8 +5,8 @@ import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
 import com.eeseka.lynk.spot.api.mappers.toPaginatedSpotsDto
 import com.eeseka.lynk.spot.api.mappers.toSpotDto
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.service.SpotService
 import jakarta.validation.constraints.*
 import org.springframework.http.HttpStatus
@@ -93,7 +93,7 @@ class SpotController(
 
     @GetMapping("/{spotId}")
     fun getSpotById(
-        @PathVariable @NotBlank spotId: String
+        @PathVariable spotId: String
     ): SpotDto {
         return spotService.getSpotById(
             spotId = spotId,
@@ -104,7 +104,7 @@ class SpotController(
     @PostMapping("/{spotId}/save")
     @ResponseStatus(HttpStatus.CREATED)
     fun saveSpot(
-        @PathVariable @NotBlank spotId: String
+        @PathVariable spotId: String
     ) {
         spotService.saveSpot(
             spotId = spotId,
@@ -115,7 +115,7 @@ class SpotController(
     @DeleteMapping("/{spotId}/save")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun unsaveSpot(
-        @PathVariable @NotBlank spotId: String
+        @PathVariable spotId: String
     ) {
         spotService.unsaveSpot(
             spotId = spotId,

@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.infra.database.repositories
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.database.entities.SavedSpotEntity
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Pageable

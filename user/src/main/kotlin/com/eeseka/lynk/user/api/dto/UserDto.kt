@@ -1,7 +1,7 @@
 package com.eeseka.lynk.user.api.dto
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.user.domain.type.AuthProvider
+import com.eeseka.lynk.user.domain.model.AuthProvider
 
 data class UserDto(
     val id: UserId,

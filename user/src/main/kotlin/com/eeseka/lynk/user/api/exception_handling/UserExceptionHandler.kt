@@ -2,7 +2,6 @@ package com.eeseka.lynk.user.api.exception_handling
 
 import com.eeseka.lynk.common.domain.exception.InvalidTokenException
 import com.eeseka.lynk.common.domain.exception.StorageException
-import com.eeseka.lynk.common.domain.exception.UnauthorizedException
 import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.exception.RateLimitException
 import com.eeseka.lynk.user.domain.exception.UserAlreadyExistsException
@@ -38,13 +37,6 @@ class UserExceptionHandler {
         "message" to e.message
     )
 
-    @ExceptionHandler(UnauthorizedException::class)
-    @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    fun onUnauthorized(e: UnauthorizedException) = mapOf(
-        "code" to "UNAUTHORIZED",
-        "message" to e.message
-    )
-
     @ExceptionHandler(RateLimitException::class)
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     fun onRateLimitExceeded(e: RateLimitException) = mapOf(
@@ -66,15 +58,8 @@ class UserExceptionHandler {
         "message" to e.message
     )
 
-    @ExceptionHandler(IllegalArgumentException::class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    fun onIllegalArgument(e: IllegalArgumentException) = mapOf(
-        "code" to "BAD_REQUEST",
-        "message" to (e.message ?: "Invalid request parameters")
-    )
-
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun onValidationException(
+    fun onRequestBodyInvalid(
         e: MethodArgumentNotValidException
     ): ResponseEntity<Map<String, Any>> {
         val errors = e.bindingResult.allErrors.map {
