@@ -1,7 +1,7 @@
 package com.eeseka.lynk.user.infra.database.repositories
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.user.domain.type.AuthProvider
+import com.eeseka.lynk.user.domain.model.AuthProvider
 import com.eeseka.lynk.user.infra.database.entities.UserEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying

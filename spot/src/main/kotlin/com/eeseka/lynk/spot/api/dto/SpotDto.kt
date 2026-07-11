@@ -1,7 +1,7 @@
 package com.eeseka.lynk.spot.api.dto
 
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import java.time.Instant
 
 data class SpotDto(

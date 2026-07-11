@@ -114,14 +114,17 @@ class UserService(
                     userId = savedUser.id!!,
                     email = safeEmail,
                     username = safeUsername,
-                    displayName = safeDisplayName
+                    displayName = safeDisplayName,
+                    profilePictureUrl = savedUser.profilePhotoUrl
                 )
             )
         } else {
             // Existing Profile Update
             eventPublisher.publish(
                 UserEvent.ProfileUpdated(
-                    userId = savedUser.id!!
+                    userId = savedUser.id!!,
+                    displayName = savedUser.displayName!!,
+                    profilePictureUrl = savedUser.profilePhotoUrl
                 )
             )
         }

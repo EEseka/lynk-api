@@ -1,7 +1,7 @@
 package com.eeseka.lynk.user.infra.database.entities
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.user.domain.type.AuthProvider
+import com.eeseka.lynk.user.domain.model.AuthProvider
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType

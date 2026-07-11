@@ -1,7 +1,5 @@
 package com.eeseka.lynk.spot.domain.model
 
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
 import java.time.Instant
 
 data class Spot(

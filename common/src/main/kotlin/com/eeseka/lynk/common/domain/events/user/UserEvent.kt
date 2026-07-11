@@ -14,6 +14,7 @@ sealed class UserEvent(
     data class Created(
         val userId: UserId,
         val email: String,
+        val displayName: String?,
         override val eventKey: String = UserEventConstants.USER_CREATED_KEY
     ) : UserEvent(), LynkEvent
 
@@ -22,11 +23,14 @@ sealed class UserEvent(
         val email: String,
         val username: String,
         val displayName: String,
+        val profilePictureUrl: String?,
         override val eventKey: String = UserEventConstants.USER_PROFILE_COMPLETED_KEY
     ) : UserEvent(), LynkEvent
 
     data class ProfileUpdated(
         val userId: UserId,
+        val displayName: String,
+        val profilePictureUrl: String?,
         override val eventKey: String = UserEventConstants.USER_PROFILE_UPDATED_KEY
     ) : UserEvent(), LynkEvent
 

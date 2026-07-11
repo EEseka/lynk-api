@@ -41,3 +41,6 @@ out/
 
 # Secret files
 *.env
+
+# MacOS Junk
+.DS_Store

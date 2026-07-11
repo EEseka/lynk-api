@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.infra.database.entities
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -27,7 +27,7 @@ import java.time.Instant
         )
     ],
     indexes = [
-        Index(name = "idx_saved_spots_user_id", columnList = "user_id"),
+        // user_id covered by leftmost column of uk_user_spot composite unique index
         Index(name = "idx_saved_spots_user_id_created_at", columnList = "user_id, created_at DESC")
     ]
 )

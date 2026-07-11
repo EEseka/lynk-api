@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.infra.google_places
 
 import com.eeseka.lynk.spot.domain.model.Spot
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlace
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlacesSearchResponse
 import com.eeseka.lynk.spot.infra.google_places.mappers.toSpot

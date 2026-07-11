@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.infra.database.repositories
 
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.spot.domain.type.PriceLevel
-import com.eeseka.lynk.spot.domain.type.SpotCategory
+import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.database.entities.SavedSpotEntity
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Pageable
@@ -36,11 +36,13 @@ interface SavedSpotRepository : JpaRepository<SavedSpotEntity, Long> {
         FROM SavedSpotEntity s 
         WHERE s.userId = :userId 
         AND s.createdAt < :before 
+        AND LOWER(s.name) LIKE LOWER(CONCAT('%', COALESCE(:query, ''), '%'))
         ORDER BY s.createdAt DESC
     """)
     fun findByUserIdBefore(
         userId: UserId,
         before: Instant,
+        query: String?,
         pageable: Pageable
     ): Slice<SavedSpotEntity>
 

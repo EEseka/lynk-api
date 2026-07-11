@@ -1,4 +1,4 @@
-package com.eeseka.lynk.spot.domain.type
+package com.eeseka.lynk.spot.domain.model
 
 enum class PriceLevel(val tier: Int) {
     CHEAP(1),
