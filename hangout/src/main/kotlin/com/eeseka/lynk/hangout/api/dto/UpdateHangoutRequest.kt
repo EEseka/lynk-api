@@ -1,5 +1,6 @@
 package com.eeseka.lynk.hangout.api.dto
 
+import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_ATTENDEES
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
 import jakarta.validation.constraints.Future
 import jakarta.validation.constraints.Max
@@ -18,7 +19,7 @@ data class UpdateHangoutRequest(
     @field:Future(message = "Hangout must be scheduled in the future")
     val scheduledAt: Instant,
     @field:Min(value = 2, message = "Max attendees must be at least 2")
-    @field:Max(value = 50, message = "Max attendees cannot exceed 50")
+    @field:Max(value = MAX_ATTENDEES.toLong(), message = "Max attendees cannot exceed 50")
     val maxAttendees: Int?,
     val spotId: String?
 )

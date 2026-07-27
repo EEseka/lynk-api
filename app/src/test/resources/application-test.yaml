@@ -39,6 +39,8 @@ lynk:
   rate-limit:
     ip:
       apply-limit: false
+  web-socket:
+    allowed-origin: "http://localhost:8080"
 
 supabase:
   service-key: dummy-supabase-key

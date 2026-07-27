@@ -1,6 +1,7 @@
 package com.eeseka.lynk.hangout.service
 
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.hangout.domain.exception.HangoutUserNotFoundException
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangoutUser
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangoutUserEntity
@@ -40,12 +41,14 @@ class HangoutUserService(
         hangoutUserRepository.deleteById(userId)
     }
 
-    fun findHangoutUserById(userId: UserId): HangoutUser? {
+    fun getHangoutUserById(userId: UserId): HangoutUser {
         return hangoutUserRepository.findByIdOrNull(userId)?.toHangoutUser()
+            ?: throw HangoutUserNotFoundException(userId.toString())
     }
 
-    fun findHangoutUserByUsername(username: String): HangoutUser? {
+    fun getHangoutUserByUsername(username: String): HangoutUser {
         val normalizedUsername = username.trim().lowercase()
         return hangoutUserRepository.findByUsername(normalizedUsername)?.toHangoutUser()
+            ?: throw HangoutUserNotFoundException("@$normalizedUsername")
     }
 }
