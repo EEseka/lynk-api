@@ -10,7 +10,7 @@ fun GooglePlace.toSpot(): Spot {
         id = id,
         name = displayName?.text ?: "Unknown",
         description = editorialSummary?.text,
-        photoUrls = this.photos?.map { it.name } ?: emptyList(),
+        photoUrls = photos?.map { it.name } ?: emptyList(),
         category = mapCategory(primaryType, types),
         tags = types ?: emptyList(),
         priceLevel = mapPrice(priceLevel),

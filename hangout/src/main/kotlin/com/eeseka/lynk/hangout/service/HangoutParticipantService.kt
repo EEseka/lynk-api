@@ -79,8 +79,8 @@ class HangoutParticipantService(
             // Re-invite: reopen the declined row with a fresh PENDING state
             hangoutParticipantRepository.save(
                 existing.apply {
-                    this.rsvpStatus = RsvpStatus.PENDING
-                    this.hasPaid = false
+                    rsvpStatus = RsvpStatus.PENDING
+                    hasPaid = false
                 }
             ).toHangoutParticipant()
         } else {
@@ -149,12 +149,12 @@ class HangoutParticipantService(
         // participantCount tracks confirmed attendees only.
         if (status == RsvpStatus.ATTENDING) {
             hangoutRepository.save(
-                hangout.apply { this.participantCount += 1 }
+                hangout.apply { participantCount += 1 }
             )
         }
 
         val savedParticipant = hangoutParticipantRepository.save(
-            participant.apply { this.rsvpStatus = status }
+            participant.apply { rsvpStatus = status }
         ).toHangoutParticipant()
 
         applicationEventPublisher.publishEvent(
@@ -246,11 +246,11 @@ class HangoutParticipantService(
 
         // Attendees are the only ones counted; free the slot on the way out.
         hangoutRepository.save(
-            hangout.apply { this.participantCount -= 1 }
+            hangout.apply { participantCount -= 1 }
         )
 
         hangoutParticipantRepository.save(
-            participant.apply { this.rsvpStatus = RsvpStatus.DECLINED }
+            participant.apply { rsvpStatus = RsvpStatus.DECLINED }
         )
 
         val leaverDisplayName = participant.hangoutUser.displayName

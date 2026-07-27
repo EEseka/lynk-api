@@ -236,7 +236,7 @@ class HangoutService(
             throw HangoutIllegalStateException("Cannot cancel a ${hangoutEntity.status.name.lowercase()} hangout.")
         }
 
-        hangoutRepository.save(hangoutEntity.apply { this.status = HangoutStatus.CANCELLED })
+        hangoutRepository.save(hangoutEntity.apply { status = HangoutStatus.CANCELLED })
 
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
@@ -277,7 +277,7 @@ class HangoutService(
             throw HangoutIllegalStateException("Cannot complete a ${hangoutEntity.status.name.lowercase()} hangout.")
         }
 
-        hangoutRepository.save(hangoutEntity.apply { this.status = HangoutStatus.COMPLETED })
+        hangoutRepository.save(hangoutEntity.apply { status = HangoutStatus.COMPLETED })
 
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
@@ -325,8 +325,8 @@ class HangoutService(
 
         hangoutRepository.save(
             hangoutEntity.apply {
-                this.chosenSpotId = spotId
-                this.status = HangoutStatus.SCHEDULED
+                chosenSpotId = spotId
+                status = HangoutStatus.SCHEDULED
             }
         )
 
