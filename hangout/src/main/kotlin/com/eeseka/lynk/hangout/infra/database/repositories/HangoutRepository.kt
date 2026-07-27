@@ -4,6 +4,7 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
+import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import jakarta.transaction.Transactional
 import org.springframework.data.domain.Pageable
@@ -49,6 +50,7 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
             SELECT 1
             FROM h.participants p
             WHERE p.hangoutUser.userId = :userId
+            AND p.rsvpStatus = :attendingStatus
         )
         AND h.createdAt < :before
         AND h.status IN :statuses
@@ -62,8 +64,15 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         statuses: Collection<HangoutStatus>,
         vibe: HangoutVibe?,
         query: String?,
+        attendingStatus: RsvpStatus,
         pageable: Pageable
     ): Slice<HangoutEntity>
+
+    @Query("SELECT h.status FROM HangoutEntity h WHERE h.id = :hangoutId")
+    fun findStatusById(hangoutId: HangoutId): HangoutStatus?
+
+    @Query("SELECT h.hostId FROM HangoutEntity h WHERE h.id = :hangoutId")
+    fun findHostIdById(hangoutId: HangoutId): UserId?
 
     // Scheduled job: "Flip all hangouts whose start time has arrived from waiting to ongoing"
     @Modifying

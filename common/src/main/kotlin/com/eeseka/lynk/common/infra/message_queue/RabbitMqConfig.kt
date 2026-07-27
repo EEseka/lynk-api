@@ -3,6 +3,7 @@
 package com.eeseka.lynk.common.infra.message_queue
 
 import com.eeseka.lynk.common.domain.events.LynkEvent
+import com.eeseka.lynk.common.domain.events.hangout.HangoutEventConstants
 import com.eeseka.lynk.common.domain.events.user.UserEventConstants
 import org.springframework.amqp.core.Binding
 import org.springframework.amqp.core.BindingBuilder
@@ -61,8 +62,21 @@ class RabbitMqConfig {
     )
 
     @Bean
+    fun hangoutExchange() = TopicExchange(
+        HangoutEventConstants.HANGOUT_EXCHANGE,
+        true,
+        false
+    )
+
+    @Bean
     fun notificationUserEventsQueue() = Queue(
         MessageQueues.NOTIFICATION_USER_EVENTS,
+        true
+    )
+
+    @Bean
+    fun notificationHangoutEventsQueue() = Queue(
+        MessageQueues.NOTIFICATION_HANGOUT_EVENTS,
         true
     )
 
@@ -81,6 +95,17 @@ class RabbitMqConfig {
             .bind(notificationUserEventsQueue)
             .to(userExchange)
             .with("user.*")
+    }
+
+    @Bean
+    fun notificationHangoutEventsBinding(
+        notificationHangoutEventsQueue: Queue,
+        hangoutExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(notificationHangoutEventsQueue)
+            .to(hangoutExchange)
+            .with("hangout.*")
     }
 
     @Bean

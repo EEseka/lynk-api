@@ -1,8 +1,10 @@
 package com.eeseka.lynk.hangout.api.exception_handling
 
 import com.eeseka.lynk.hangout.domain.exception.HangoutAccessDeniedException
+import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalArgumentException
 import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalStateException
 import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
+import com.eeseka.lynk.hangout.domain.exception.HangoutUserNotFoundException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -21,6 +23,13 @@ class HangoutExceptionHandler {
         "message" to e.message
     )
 
+    @ExceptionHandler(HangoutUserNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun onHangoutUserNotFound(e: HangoutUserNotFoundException) = mapOf(
+        "code" to "HANGOUT_USER_NOT_FOUND",
+        "message" to e.message
+    )
+
     @ExceptionHandler(HangoutAccessDeniedException::class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     fun onHangoutAccessDenied(e: HangoutAccessDeniedException) = mapOf(
@@ -32,6 +41,13 @@ class HangoutExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     fun onHangoutIllegalState(e: HangoutIllegalStateException) = mapOf(
         "code" to "HANGOUT_ILLEGAL_STATE",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(HangoutIllegalArgumentException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun onHangoutIllegalArgument(e: HangoutIllegalArgumentException) = mapOf(
+        "code" to "HANGOUT_ILLEGAL_ARGUMENT",
         "message" to e.message
     )
 

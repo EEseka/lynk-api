@@ -24,6 +24,8 @@ lynk:
   rate-limit:
     ip:
       apply-limit: false
+  web-socket:
+    allowed-origin: "http://localhost:8080"
 
 nginx:
   require-proxy: false

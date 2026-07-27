@@ -2,8 +2,10 @@ package com.eeseka.lynk.hangout.infra.database.mappers
 
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
+import com.eeseka.lynk.hangout.domain.model.HangoutPreview
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
+import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutUserEntity
@@ -65,6 +67,25 @@ fun HangoutEntity.toHangoutSummary(): HangoutSummary {
         scheduledAt = scheduledAt,
         maxAttendees = maxAttendees,
         participantCount = participantCount,
+        createdAt = createdAt
+    )
+}
+
+fun HangoutEntity.toHangoutPreview(): HangoutPreview {
+    return HangoutPreview(
+        id = id!!,
+        hostId = hostId,
+        name = name,
+        description = description,
+        vibe = vibe,
+        status = status,
+        scheduledAt = scheduledAt,
+        maxAttendees = maxAttendees,
+        participantCount = participantCount,
+        chosenSpotID = chosenSpotId,
+        attendees = participants
+            .filter { it.rsvpStatus == RsvpStatus.ATTENDING }
+            .map { it.hangoutUser.toHangoutUser() },
         createdAt = createdAt
     )
 }
