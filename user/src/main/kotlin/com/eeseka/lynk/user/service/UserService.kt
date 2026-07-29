@@ -6,6 +6,7 @@ import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.exception.UserAlreadyExistsException
 import com.eeseka.lynk.user.domain.exception.UserNotFoundException
+import com.eeseka.lynk.user.domain.exception.UsernameAlreadySetException
 import com.eeseka.lynk.user.domain.model.ProfilePictureUploadCredentials
 import com.eeseka.lynk.user.domain.model.User
 import com.eeseka.lynk.user.infra.database.mappers.toUser
@@ -66,6 +67,9 @@ class UserService(
         }
 
         if (isUsernameChanged) {
+            if (userEntity.username != null) {
+                throw UsernameAlreadySetException()
+            }
             if (reservedUsernames.contains(normalizedUsername)) {
                 throw UserAlreadyExistsException()
             }

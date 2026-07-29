@@ -6,6 +6,7 @@ import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.exception.RateLimitException
 import com.eeseka.lynk.user.domain.exception.UserAlreadyExistsException
 import com.eeseka.lynk.user.domain.exception.UserNotFoundException
+import com.eeseka.lynk.user.domain.exception.UsernameAlreadySetException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -20,6 +21,13 @@ class UserExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     fun onUserAlreadyExists(e: UserAlreadyExistsException) = mapOf(
         "code" to "USER_EXISTS",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(UsernameAlreadySetException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun onUsernameAlreadySet(e: UsernameAlreadySetException) = mapOf(
+        "code" to "USERNAME_ALREADY_SET",
         "message" to e.message
     )
 
