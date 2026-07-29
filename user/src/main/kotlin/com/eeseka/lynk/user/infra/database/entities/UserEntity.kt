@@ -9,7 +9,6 @@ import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
-import jakarta.persistence.Index
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
@@ -18,11 +17,7 @@ import java.time.Instant
 @Entity
 @Table(
     name = "users",
-    schema = "user_service",
-    indexes = [
-        Index(name = "idx_users_email", columnList = "email"),
-        Index(name = "idx_users_username", columnList = "username"),
-    ]
+    schema = "user_service"
 )
 class UserEntity(
     @Id
