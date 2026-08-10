@@ -24,8 +24,7 @@ class GooglePlacesClient(
 
     @Cacheable(
         value = ["trending_spots"],
-        key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0",
-        sync = true
+        key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0"
     )
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
         val body = mapOf(
@@ -131,6 +130,10 @@ class GooglePlacesClient(
         return Pair(spots, response?.nextPageToken)
     }
 
+    @Cacheable(
+        value = ["spot_details"],
+        unless = "#result == null"
+    )
     fun getSpotById(placeId: String): Spot? {
         return try {
             val response = googlePlacesRestClient.get()

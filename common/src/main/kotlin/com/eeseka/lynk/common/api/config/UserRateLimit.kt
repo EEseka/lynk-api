@@ -1,8 +1,8 @@
-package com.eeseka.lynk.user.api.config
+package com.eeseka.lynk.common.api.config
 
 import java.util.concurrent.TimeUnit
 
-annotation class IpRateLimit(
+annotation class UserRateLimit(
     val requests: Int = 60,
     val duration: Long = 1L,
     val unit: TimeUnit = TimeUnit.MINUTES

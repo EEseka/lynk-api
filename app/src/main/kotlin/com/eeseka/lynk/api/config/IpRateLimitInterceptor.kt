@@ -1,8 +1,8 @@
-package com.eeseka.lynk.user.api.config
+package com.eeseka.lynk.api.config
 
-import com.eeseka.lynk.user.domain.exception.RateLimitException
-import com.eeseka.lynk.user.infra.rate_limiting.IpRateLimiter
-import com.eeseka.lynk.user.infra.rate_limiting.IpResolver
+import com.eeseka.lynk.common.api.config.IpRateLimit
+import com.eeseka.lynk.infra.rate_limiting.IpRateLimiter
+import com.eeseka.lynk.infra.rate_limiting.IpResolver
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
@@ -25,20 +25,16 @@ class IpRateLimitInterceptor(
             if (annotation != null) {
                 val clientIp = ipResolver.getClientIp(request)
 
-                return try {
-                    ipRateLimiter.withIpRateLimit(
-                        ipAddress = clientIp,
-                        resetsIn = Duration.of(
-                            annotation.duration,
-                            annotation.unit.toChronoUnit()
-                        ),
-                        maxRequestsPerIp = annotation.requests,
-                        action = { true }
-                    )
-                } catch (_: RateLimitException) {
-                    response.sendError(429)
-                    false
-                }
+                return ipRateLimiter.withIpRateLimit(
+                    ipAddress = clientIp,
+                    route = "${handler.beanType.simpleName}.${handler.method.name}",
+                    resetsIn = Duration.of(
+                        annotation.duration,
+                        annotation.unit.toChronoUnit()
+                    ),
+                    maxRequestsPerIp = annotation.requests,
+                    action = { true }
+                )
             }
         }
 

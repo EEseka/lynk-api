@@ -1,6 +1,6 @@
-package com.eeseka.lynk.user.infra.rate_limiting
+package com.eeseka.lynk.infra.rate_limiting
 
-import com.eeseka.lynk.user.domain.exception.RateLimitException
+import com.eeseka.lynk.common.domain.exception.RateLimitException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.Resource
 import org.springframework.data.redis.core.StringRedisTemplate
@@ -16,7 +16,7 @@ class IpRateLimiter(
         private const val IP_RATE_LIMIT_PREFIX = "rate_limit:ip"
     }
 
-    @Value("classpath:ip_rate_limit.lua")
+    @Value("classpath:fixed_window_rate_limit.lua")
     lateinit var rateLimitResource: Resource
 
     private val rateLimitScript by lazy {
@@ -29,11 +29,12 @@ class IpRateLimiter(
 
     fun <T> withIpRateLimit(
         ipAddress: String,
+        route: String,
         resetsIn: Duration,
         maxRequestsPerIp: Int,
         action: () -> T
     ): T {
-        val key = "$IP_RATE_LIMIT_PREFIX:$ipAddress"
+        val key = "$IP_RATE_LIMIT_PREFIX:$route:$ipAddress"
 
         val result = redisTemplate.execute(
             rateLimitScript,

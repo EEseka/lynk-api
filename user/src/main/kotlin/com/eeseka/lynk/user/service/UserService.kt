@@ -3,6 +3,7 @@ package com.eeseka.lynk.user.service
 import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.message_queue.EventPublisher
+import com.eeseka.lynk.user.domain.events.ProfilePictureReplacedEvent
 import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.exception.UserAlreadyExistsException
 import com.eeseka.lynk.user.domain.exception.UserNotFoundException
@@ -12,8 +13,8 @@ import com.eeseka.lynk.user.domain.model.User
 import com.eeseka.lynk.user.infra.database.mappers.toUser
 import com.eeseka.lynk.user.infra.database.repositories.UserRepository
 import com.eeseka.lynk.user.infra.storage.SupabaseUserStorageService
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,8 +25,8 @@ class UserService(
     private val supabaseUserStorageService: SupabaseUserStorageService,
     @param:Value("\${supabase.url}") private val supabaseUrl: String,
     private val eventPublisher: EventPublisher,
+    private val applicationEventPublisher: ApplicationEventPublisher,
 ) {
-    private val logger = LoggerFactory.getLogger(UserService::class.java)
 
     private val reservedUsernames = setOf("admin", "support", "system", "api", "lynk", "root", "null")
 
@@ -94,13 +95,12 @@ class UserService(
             }
         )
 
-        // Safe Cleanup of the old file
+        // Handed to a listener that runs after this commits, so the call to Supabase happens with no
+        // database connection held and never deletes a file a rolled-back profile still points at.
         if (isPhotoChanged && oldPhotoUrl != null && oldPhotoUrl.startsWith(supabaseUrl)) {
-            try {
-                supabaseUserStorageService.deleteFile(oldPhotoUrl)
-            } catch (e: Exception) {
-                logger.warn("Failed to delete old profile picture for user $userId", e)
-            }
+            applicationEventPublisher.publishEvent(
+                ProfilePictureReplacedEvent(userId = userId, oldPhotoUrl = oldPhotoUrl)
+            )
         }
 
         // New Profile Setup

@@ -32,12 +32,20 @@ class ApiKeyAuthFilter(
         val apiKey = request.getHeader(API_KEY_HEADER)
 
         if (apiKey.isNullOrBlank()) {
-            sendUnauthorizedResponse(response, "Missing API key. Make sure to attach it as an X-API-Key header.")
+            sendUnauthorizedResponse(
+                response = response,
+                code = "MISSING_API_KEY",
+                message = "Missing API key. Make sure to attach it as an X-API-Key header."
+            )
             return
         }
 
         if (!apiKeyService.isValidKey(apiKey)) {
-            sendUnauthorizedResponse(response, "Invalid API key")
+            sendUnauthorizedResponse(
+                response = response,
+                code = "INVALID_API_KEY",
+                message = "Invalid API key"
+            )
             return
         }
 
@@ -49,9 +57,9 @@ class ApiKeyAuthFilter(
                 request.servletPath == AUTH_API_KEY_PATH
     }
 
-    private fun sendUnauthorizedResponse(response: HttpServletResponse, message: String) {
+    private fun sendUnauthorizedResponse(response: HttpServletResponse, code: String, message: String) {
         response.status = HttpStatus.UNAUTHORIZED.value()
         response.contentType = "application/json"
-        response.writer.write("""{"error": "$message"}""")
+        response.writer.write("""{"code": "$code", "message": "$message"}""")
     }
 }

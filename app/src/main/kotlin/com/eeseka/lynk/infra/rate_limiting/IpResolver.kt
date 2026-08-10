@@ -1,4 +1,4 @@
-package com.eeseka.lynk.user.infra.rate_limiting
+package com.eeseka.lynk.infra.rate_limiting
 
 import com.eeseka.lynk.user.infra.config.NginxConfig
 import jakarta.servlet.http.HttpServletRequest
@@ -31,7 +31,7 @@ class IpResolver(
         )
     }
 
-    private val logger = LoggerFactory.getLogger(IpResolver::class.java)
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     private val trustedMatchers: List<IpAddressMatcher> = nginxConfig
         .trustedIps

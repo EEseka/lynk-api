@@ -4,19 +4,18 @@ import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.database.entities.SavedSpotEntity
-import jakarta.transaction.Transactional
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 interface SavedSpotRepository : JpaRepository<SavedSpotEntity, Long> {
 
     fun existsByUserIdAndGooglePlaceId(userId: UserId, googlePlaceId: String): Boolean
 
-    @Transactional
     fun deleteByUserIdAndGooglePlaceId(userId: UserId, googlePlaceId: String)
 
     @Query(
@@ -39,7 +38,7 @@ interface SavedSpotRepository : JpaRepository<SavedSpotEntity, Long> {
         AND LOWER(s.name) LIKE LOWER(CONCAT('%', COALESCE(:query, ''), '%'))
         ORDER BY s.createdAt DESC
     """)
-    fun findByUserIdBefore(
+    fun findByUserIdAndCreatedAtBeforeAndNameContaining(
         userId: UserId,
         before: Instant,
         query: String?,

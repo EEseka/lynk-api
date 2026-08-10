@@ -1,5 +1,6 @@
 package com.eeseka.lynk.spot.api.controllers
 
+import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.*
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 @Validated
 @RestController
@@ -53,6 +55,11 @@ class SpotController(
         ).map { it.toSpotDto() }
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS
+    )
     @GetMapping("/search")
     fun searchSpots(
         @RequestParam

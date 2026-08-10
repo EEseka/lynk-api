@@ -1,7 +1,7 @@
 package com.eeseka.lynk.user.api.controllers
 
+import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
-import com.eeseka.lynk.user.api.config.IpRateLimit
 import com.eeseka.lynk.user.api.dto.GenerateProfilePictureUploadUrlRequest
 import com.eeseka.lynk.user.api.dto.ProfilePictureUploadResponse
 import com.eeseka.lynk.user.api.dto.UpdateProfileRequest
@@ -20,11 +20,6 @@ class UserController(
 ) {
 
     @GetMapping("/username-available")
-    @IpRateLimit(
-        requests = 60,
-        duration = 1L, 
-        unit = TimeUnit.MINUTES
-    )
     fun isUsernameAvailable(
         @RequestParam username: String
     ): Map<String, Boolean> {
@@ -33,7 +28,7 @@ class UserController(
     }
 
     @PostMapping("/profile-picture/generate-upload-url")
-    @IpRateLimit(
+    @UserRateLimit(
         requests = 20,
         duration = 1L,
         unit = TimeUnit.HOURS
@@ -48,11 +43,6 @@ class UserController(
     }
 
     @PutMapping("/profile")
-    @IpRateLimit(
-        requests = 30,
-        duration = 1L,
-        unit = TimeUnit.HOURS
-    )
     fun updateProfile(
         @Valid @RequestBody body: UpdateProfileRequest
     ): UserDto {
