@@ -6,6 +6,7 @@ import com.eeseka.lynk.hangout.domain.model.HangoutVibe
 import com.eeseka.lynk.common.domain.type.UserId
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
+import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -63,9 +64,6 @@ class HangoutEntity(
     @Column(nullable = true)
     var chosenSpotId: String?,
 
-    @Column(nullable = true)
-    var totalCost: Double? = null,
-
     @OneToMany(
         mappedBy = "hangout",
         fetch = FetchType.LAZY,
@@ -73,6 +71,9 @@ class HangoutEntity(
         orphanRemoval = true
     )
     var participants: MutableList<HangoutParticipantEntity> = mutableListOf(),
+
+    @Embedded
+    var payment: HangoutPaymentEntity? = null,
 
     @CreationTimestamp
     var createdAt: Instant = Instant.now(),

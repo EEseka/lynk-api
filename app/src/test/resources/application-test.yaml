@@ -39,6 +39,8 @@ lynk:
   rate-limit:
     ip:
       apply-limit: false
+    user:
+      apply-limit: false
   web-socket:
     allowed-origin: "http://localhost:8080"
 
@@ -47,3 +49,6 @@ supabase:
 
 places:
   api-key: dummy-places-key
+
+paystack:
+  secret-key: dummy-paystack-secret-key

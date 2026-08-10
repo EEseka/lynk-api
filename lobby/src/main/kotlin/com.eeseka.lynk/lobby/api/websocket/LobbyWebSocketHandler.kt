@@ -2,7 +2,6 @@ package com.eeseka.lynk.lobby.api.websocket
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
-import com.eeseka.lynk.common.service.JwtService
 import com.eeseka.lynk.hangout.domain.event.*
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.service.HangoutParticipantService
@@ -13,11 +12,11 @@ import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessage
 import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessageType
 import com.eeseka.lynk.lobby.api.dto.ws.inbound.*
 import com.eeseka.lynk.lobby.api.dto.ws.outbound.*
+import com.eeseka.lynk.lobby.api.websocket.LobbyHandshakeInterceptor.Companion.USER_ID_ATTRIBUTE
 import com.eeseka.lynk.spot.api.mappers.toSpotDto
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.service.SpotService
 import org.slf4j.LoggerFactory
-import org.springframework.http.HttpHeaders
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
@@ -33,7 +32,6 @@ import kotlin.concurrent.write
 
 @Component
 class LobbyWebSocketHandler(
-    private val jwtService: JwtService,
     private val hangoutParticipantService: HangoutParticipantService,
     private val spotService: SpotService,
     private val hangoutService: HangoutService,
@@ -63,13 +61,12 @@ class LobbyWebSocketHandler(
     private val hangoutLocations = ConcurrentHashMap<HangoutId, MutableMap<UserId, Coordinates>>()
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
-        val authHeader = session.handshakeHeaders.getFirst(HttpHeaders.AUTHORIZATION) ?: run {
-            logger.warn("Session ${session.id} closed: missing Authorization header")
+
+        val userId = session.attributes[USER_ID_ATTRIBUTE] as? UserId ?: run {
+            logger.error("Session ${session.id} opened with no user on it")
             session.close(CloseStatus.SERVER_ERROR.withReason("Authentication failed"))
             return
         }
-
-        val userId = jwtService.getUserIdFromToken(authHeader)
 
         val userSession = UserSession(userId = userId, session = session)
 
@@ -338,6 +335,70 @@ class LobbyWebSocketHandler(
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onNonPayerRemoved(event: HangoutNonPayerRemovedEvent) {
+        unsubscribeUserFromHangout(event.userId, event.hangoutId)
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.NON_PAYER_REMOVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyParticipantDto(
+                        hangoutId = event.hangoutId,
+                        userId = event.userId,
+                        displayName = event.displayName
+                    )
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onPaymentReceived(event: HangoutPaymentReceivedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PAYMENT_RECEIVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyParticipantDto(
+                        hangoutId = event.hangoutId,
+                        userId = event.userId,
+                        displayName = event.displayName
+                    )
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onPaymentDeadlineResolved(event: HangoutPaymentDeadlineResolvedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PAYMENT_DEADLINE_RESOLVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyHangoutDto(hangoutId = event.hangoutId)
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onPayoutOutcome(event: HangoutPayoutOutcomeEvent) {
+        sendToUser(
+            userId = event.hostId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PAYOUT_OUTCOME,
+                payload = objectMapper.writeValueAsString(
+                    LobbyPayoutDto(
+                        hangoutId = event.hangoutId,
+                        succeeded = event.succeeded
+                    )
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onParticipantLeft(event: HangoutParticipantLeftEvent) {
         // Unwire the leaver's sockets FIRST so they don't receive their own "left" message; the remaining attendees still do.
         unsubscribeUserFromHangout(event.userId, event.hangoutId)
@@ -423,11 +484,21 @@ class LobbyWebSocketHandler(
         }
     }
 
-    // Remove a leaving user's sockets from this hangout.
+    // Remove a leaving user's sockets from this hangout and take their ballot and pin with them.
     private fun unsubscribeUserFromHangout(userId: UserId, hangoutId: HangoutId) {
         var wasViewing = false
+        var votesSnapshot: Map<UserId, String>? = null
+        var locationDropped = false
 
         connectionLock.write {
+            // Someone out of the hangout gets no say in where it happens, and their pin no
+            // longer belongs in the group center. Done before the socket check below, because they
+            // may well have left over REST with the app closed and no session left to unwire.
+            hangoutVotes[hangoutId]?.let { votes ->
+                if (votes.remove(userId) != null) votesSnapshot = HashMap(votes)
+            }
+            locationDropped = hangoutLocations[hangoutId]?.remove(userId) != null
+
             val sessionIds = userToSessions[userId] ?: return@write
             userHangoutIds.compute(userId) { _, ids ->
                 ids?.apply { remove(hangoutId) }?.takeIf { it.isNotEmpty() }
@@ -447,6 +518,30 @@ class LobbyWebSocketHandler(
         }
 
         if (wasViewing) broadcastPresence(hangoutId)
+
+        // The tally just shrank and the center just moved: everyone still here needs the new numbers.
+        votesSnapshot?.let { votes ->
+            broadcastToHangout(
+                hangoutId = hangoutId,
+                message = OutgoingWebSocketMessage(
+                    type = OutgoingWebSocketMessageType.VOTE_TALLY,
+                    payload = objectMapper.writeValueAsString(
+                        VoteTallyDto(hangoutId = hangoutId, votes = votes)
+                    )
+                )
+            )
+        }
+        if (locationDropped) {
+            computeCenter(hangoutId)?.let { center ->
+                broadcastToHangout(
+                    hangoutId = hangoutId,
+                    message = OutgoingWebSocketMessage(
+                        type = OutgoingWebSocketMessageType.CENTER_UPDATE,
+                        payload = objectMapper.writeValueAsString(center)
+                    )
+                )
+            }
+        }
     }
 
     // A completed/canceled hangout is gone: drop it from every map entirely,
@@ -523,7 +618,7 @@ class LobbyWebSocketHandler(
             return
         }
         if (!hangoutService.isVotingOpen(hangoutId)) {
-            sendError(userSession.session, ErrorDto("VOTING_CLOSED", "Voting is not open for this hangout"))//TODO
+            sendError(userSession.session, ErrorDto("VOTING_CLOSED", "Voting is not open for this hangout"))
             return
         }
 
@@ -821,6 +916,21 @@ class LobbyWebSocketHandler(
     private fun broadcastToHangout(hangoutId: HangoutId, message: OutgoingWebSocketMessage) {
         val sessionIds = connectionLock.read {
             hangoutToSessions[hangoutId]?.toList() ?: emptyList()
+        }
+        if (sessionIds.isEmpty()) return
+
+        val messageJson = objectMapper.writeValueAsString(message)
+
+        sessionIds.forEach { sessionId ->
+            val userSession = connectionLock.read { sessions[sessionId] } ?: return@forEach
+            sendJson(userSession, messageJson)
+        }
+    }
+
+    // Every device this one person has open, rather than the whole room.
+    private fun sendToUser(userId: UserId, message: OutgoingWebSocketMessage) {
+        val sessionIds = connectionLock.read {
+            userToSessions[userId]?.toList() ?: emptyList()
         }
         if (sessionIds.isEmpty()) return
 

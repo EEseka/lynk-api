@@ -22,6 +22,7 @@ class HangoutUserEventListener(
                 hangoutUserService.createHangoutUser(
                     HangoutUser(
                         userId = event.userId,
+                        email = event.email,
                         username = event.username,
                         displayName = event.displayName,
                         profilePictureUrl = event.profilePictureUrl

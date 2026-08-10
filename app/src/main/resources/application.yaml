@@ -2,6 +2,11 @@ spring:
   application:
     name: lynk
 
+  task:
+    scheduling:
+      pool:
+        size: 4
+
   data:
     redis:
       host: "redis-19726.c226.eu-west-1-3.ec2.cloud.redislabs.com"
@@ -94,6 +99,14 @@ supabase:
 places:
   url: "https://places.googleapis.com/v1"
   api-key: ${GOOGLE_PLACES_KEY}
+
+paystack:
+  url: "https://api.paystack.co"
+  secret-key: ${PAYSTACK_SECRET_KEY}
+
+bank-logo:
+  nigerian-banks-url: "https://nigerianbanks.xyz"
+  supermx-url: "https://supermx1.github.io/nigerian-banks-api"
 
 server:
   port: 8080

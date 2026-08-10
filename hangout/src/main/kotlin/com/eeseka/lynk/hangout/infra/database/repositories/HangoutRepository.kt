@@ -4,9 +4,9 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
+import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
-import jakarta.transaction.Transactional
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
@@ -42,7 +42,7 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     """)
     fun findAllHostedByUserId(userId: UserId): List<HangoutEntity>
 
-    // All feeds: cursor-paginated by createdAt, status drives which tab is served
+    // All feeds: cursor-paginated by createdAt, status drives which tab is served.
     @Query("""
         SELECT h
         FROM HangoutEntity h
@@ -50,7 +50,7 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
             SELECT 1
             FROM h.participants p
             WHERE p.hangoutUser.userId = :userId
-            AND p.rsvpStatus = :attendingStatus
+            AND p.rsvpStatus = :rsvpStatus
         )
         AND h.createdAt < :before
         AND h.status IN :statuses
@@ -58,13 +58,13 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         AND LOWER(h.name) LIKE LOWER(CONCAT('%', COALESCE(:query, ''), '%'))
         ORDER BY h.createdAt DESC
     """)
-    fun findByUserIdBefore(
+    fun findByParticipantAndCreatedAtBeforeAndStatusInAndVibeAndNameContaining(
         userId: UserId,
+        rsvpStatus: RsvpStatus,
         before: Instant,
         statuses: Collection<HangoutStatus>,
         vibe: HangoutVibe?,
         query: String?,
-        attendingStatus: RsvpStatus,
         pageable: Pageable
     ): Slice<HangoutEntity>
 
@@ -74,28 +74,72 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     @Query("SELECT h.hostId FROM HangoutEntity h WHERE h.id = :hangoutId")
     fun findHostIdById(hangoutId: HangoutId): UserId?
 
+    // Drives the payout sweep: everything collected and waiting to be sent to a host.
+    @Query("""
+        SELECT h.id
+        FROM HangoutEntity h
+        WHERE h.payment.state = :paymentState
+        AND h.status <> :excludedStatus
+    """)
+    fun findIdsByPaymentStateAndStatusNot(
+        paymentState: PaymentState,
+        excludedStatus: HangoutStatus
+    ): List<HangoutId>
+
+    @Query("SELECT h.id FROM HangoutEntity h WHERE h.payment.state = :paymentState")
+    fun findIdsByPaymentState(paymentState: PaymentState): List<HangoutId>
+
+    // Drives the payment deadline sweep: hangouts still collecting whose deadline has passed.
+    @Query("""
+        SELECT h
+        FROM HangoutEntity h
+        LEFT JOIN FETCH h.participants
+        WHERE h.payment.state = :paymentState
+        AND h.payment.deadline < :deadline
+        AND h.status <> :excludedStatus
+    """)
+    fun findByPaymentStateAndPaymentDeadlineBeforeAndStatusNot(
+        paymentState: PaymentState,
+        deadline: Instant,
+        excludedStatus: HangoutStatus
+    ): List<HangoutEntity>
+
+    // Drives the last-resort sweep: the host never answered, and the hangout is starting anyway.
+    @Query("""
+        SELECT h
+        FROM HangoutEntity h
+        LEFT JOIN FETCH h.participants
+        WHERE h.payment.state = :paymentState
+        AND h.scheduledAt <= :now
+        AND h.status <> :excludedStatus
+    """)
+    fun findByPaymentStateAndScheduledAtBeforeAndStatusNot(
+        paymentState: PaymentState,
+        now: Instant,
+        excludedStatus: HangoutStatus
+    ): List<HangoutEntity>
+
     // Scheduled job: "Flip all hangouts whose start time has arrived from waiting to ongoing"
     @Modifying
-    @Transactional
     @Query("""
         UPDATE HangoutEntity h
         SET h.status = :ongoingStatus
         WHERE h.status IN :activeStatuses
         AND h.scheduledAt <= :now
     """)
-    fun transitionToOngoing(
+    fun transitionDueHangoutsToOngoing(
         now: Instant,
         ongoingStatus: HangoutStatus,
         activeStatuses: Collection<HangoutStatus>
     )
 
-    // Scheduled job: "Sweep empty hangouts whose event date is over 30 days in the past"
+    // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
     @Modifying
-    @Transactional
     @Query("""
         DELETE FROM HangoutEntity h
         WHERE h.participantCount = 1
         AND h.scheduledAt < :cutoff
+        AND h.payment.state IS NULL
     """)
-    fun deleteGhostHangouts(cutoff: Instant)
+    fun deleteSoloUnpaidHangoutsScheduledBefore(cutoff: Instant)
 }

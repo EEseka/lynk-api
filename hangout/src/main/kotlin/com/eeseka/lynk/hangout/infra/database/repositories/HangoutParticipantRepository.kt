@@ -9,9 +9,7 @@ import org.springframework.data.jpa.repository.Query
 
 interface HangoutParticipantRepository : JpaRepository<HangoutParticipantEntity, Long> {
 
-    fun findAllByHangoutId(hangoutId: HangoutId): List<HangoutParticipantEntity>
-
-    fun existsByHangoutIdAndHangoutUserUserId(hangoutId: HangoutId, userId: UserId): Boolean
+    fun findByHangoutIdAndHangoutUserUserId(hangoutId: HangoutId, userId: UserId): HangoutParticipantEntity?
 
     // Used to enforce maxAttendees: count ATTENDING + PENDING (active slots)
     fun countByHangoutIdAndRsvpStatusIn(
@@ -20,12 +18,20 @@ interface HangoutParticipantRepository : JpaRepository<HangoutParticipantEntity,
     ): Int
 
     @Query("""
-        SELECT p.hangout.id 
+        SELECT p.rsvpStatus
+        FROM HangoutParticipantEntity p
+        WHERE p.hangout.id = :hangoutId
+        AND p.hangoutUser.userId = :userId
+    """)
+    fun findRsvpStatusByHangoutIdAndUserId(hangoutId: HangoutId, userId: UserId): RsvpStatus?
+
+    @Query("""
+        SELECT p.hangout.id
         FROM HangoutParticipantEntity p
         WHERE p.hangoutUser.userId = :userId
         AND p.rsvpStatus = :rsvpStatus
     """)
-    fun findHangoutIdsByAttendee(
+    fun findHangoutIdsByUserIdAndRsvpStatus(
         userId: UserId,
         rsvpStatus: RsvpStatus
     ): List<HangoutId>

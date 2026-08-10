@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":spot"))
     implementation(project(":hangout"))
     implementation(project(":lobby"))
+    implementation(project(":payment"))
 
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.security)

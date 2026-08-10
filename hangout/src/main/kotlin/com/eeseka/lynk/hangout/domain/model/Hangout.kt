@@ -15,7 +15,7 @@ data class Hangout(
     val maxAttendees: Int?,
     val participantCount: Int,
     val chosenSpotID: String?, // Google Place ID null if still voting
-    val totalCost: Double?,
     val participants: List<HangoutParticipant>,
+    val payment: HangoutPayment?,
     val createdAt: Instant
 )

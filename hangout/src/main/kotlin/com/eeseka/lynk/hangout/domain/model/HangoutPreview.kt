@@ -5,7 +5,7 @@ import com.eeseka.lynk.common.domain.type.UserId
 import java.time.Instant
 
 // The glimpse a PENDING invitee sees before accepting.
-//  Mirrors Hangout, minus totalCost, and attendees are plain HangoutUsers (no RSVP/payment) — ATTENDING only.
+//  Mirrors Hangout, minus the cost fields, and attendees are plain HangoutUsers (no RSVP/payment) — ATTENDING only.
 data class HangoutPreview(
     val id: HangoutId,
     val hostId: UserId,

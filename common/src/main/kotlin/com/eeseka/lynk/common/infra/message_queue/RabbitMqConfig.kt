@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.eeseka.lynk.common.infra.message_queue
 
 import com.eeseka.lynk.common.domain.events.LynkEvent
@@ -87,6 +85,12 @@ class RabbitMqConfig {
     )
 
     @Bean
+    fun paymentHangoutEventsQueue() = Queue(
+        MessageQueues.PAYMENT_HANGOUT_EVENTS,
+        true
+    )
+
+    @Bean
     fun notificationUserEventsBinding(
         notificationUserEventsQueue: Queue,
         userExchange: TopicExchange,
@@ -117,5 +121,16 @@ class RabbitMqConfig {
             .bind(hangoutUserEventsQueue)
             .to(userExchange)
             .with("user.*")
+    }
+
+    @Bean
+    fun paymentHangoutEventsBinding(
+        paymentHangoutEventsQueue: Queue,
+        hangoutExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(paymentHangoutEventsQueue)
+            .to(hangoutExchange)
+            .with("hangout.*")
     }
 }

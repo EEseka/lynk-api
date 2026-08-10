@@ -2,11 +2,13 @@ package com.eeseka.lynk.hangout.api.mappers
 
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
 import com.eeseka.lynk.hangout.api.dto.HangoutParticipantDto
+import com.eeseka.lynk.hangout.api.dto.HangoutPaymentDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPreviewDto
 import com.eeseka.lynk.hangout.api.dto.HangoutSummaryDto
 import com.eeseka.lynk.hangout.api.dto.HangoutUserDto
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
+import com.eeseka.lynk.hangout.domain.model.HangoutPayment
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
@@ -24,10 +26,7 @@ fun HangoutUser.toHangoutUserDto(): HangoutUserDto {
 
 fun HangoutParticipant.toHangoutParticipantDto(): HangoutParticipantDto {
     return HangoutParticipantDto(
-        userId = userId,
-        username = username,
-        displayName = displayName,
-        profilePictureUrl = profilePictureUrl,
+        user = user.toHangoutUserDto(),
         rsvpStatus = rsvpStatus,
         hasPaid = hasPaid
     )
@@ -76,8 +75,18 @@ fun Hangout.toHangoutDto(chosenSpot: Spot?): HangoutDto {
         maxAttendees = maxAttendees,
         participantCount = participantCount,
         chosenSpot = chosenSpot?.toSpotDto(),
-        totalCost = totalCost,
         participants = participants.map { it.toHangoutParticipantDto() },
+        payment = payment?.toHangoutPaymentDto(),
         createdAt = createdAt
+    )
+}
+
+fun HangoutPayment.toHangoutPaymentDto(): HangoutPaymentDto {
+    return HangoutPaymentDto(
+        totalCostKobo = totalCostKobo,
+        costPerPersonKobo = costPerPersonKobo,
+        splitHeadcount = splitHeadcount,
+        deadline = deadline,
+        state = state
     )
 }
