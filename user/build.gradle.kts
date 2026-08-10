@@ -17,7 +17,6 @@ dependencies {
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.validation)
 
-    implementation(libs.spring.boot.starter.data.redis)
     implementation(libs.spring.boot.starter.amqp)
     implementation(libs.spring.boot.starter.mail)
     implementation(libs.spring.boot.starter.thymeleaf)  // Email Templates

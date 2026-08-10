@@ -49,7 +49,19 @@ class RedisConfig {
             .cacheDefaults(defaultCacheConfig)
             .withCacheConfiguration(
                 "trending_spots",
-                defaultCacheConfig.entryTtl(Duration.ofMinutes(15)) 
+                defaultCacheConfig.entryTtl(Duration.ofMinutes(15))
+            )
+            .withCacheConfiguration(
+                "spot_details",
+                defaultCacheConfig.entryTtl(Duration.ofDays(1L))
+            )
+            .withCacheConfiguration(
+                "paystack_banks",
+                defaultCacheConfig.entryTtl(Duration.ofDays(1L))
+            )
+            .withCacheConfiguration(
+                "bank_logos",
+                defaultCacheConfig.entryTtl(Duration.ofDays(1L))
             )
             .transactionAware()
             .build()

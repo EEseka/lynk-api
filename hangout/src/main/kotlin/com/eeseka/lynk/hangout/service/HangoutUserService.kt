@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service
 class HangoutUserService(
     private val hangoutUserRepository: HangoutUserRepository
 ) {
-    private val logger = LoggerFactory.getLogger(HangoutUserService::class.java)
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     fun createHangoutUser(hangoutUser: HangoutUser) {
         hangoutUserRepository.save(hangoutUser.toHangoutUserEntity())
@@ -39,11 +39,6 @@ class HangoutUserService(
 
     fun deleteHangoutUser(userId: UserId) {
         hangoutUserRepository.deleteById(userId)
-    }
-
-    fun getHangoutUserById(userId: UserId): HangoutUser {
-        return hangoutUserRepository.findByIdOrNull(userId)?.toHangoutUser()
-            ?: throw HangoutUserNotFoundException(userId.toString())
     }
 
     fun getHangoutUserByUsername(username: String): HangoutUser {

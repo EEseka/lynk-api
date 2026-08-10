@@ -28,10 +28,19 @@ sealed class HangoutEvent(
         override val eventKey: String = HangoutEventConstants.HANGOUT_INVITE_CANCELLED_KEY
     ) : HangoutEvent(), LynkEvent
 
+    data class RemovedForNonPayment(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val participantId: UserId,
+        val hostDisplayName: String,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_REMOVED_FOR_NON_PAYMENT_KEY
+    ) : HangoutEvent(), LynkEvent
+
     data class ParticipantLeft(
         val hangoutId: HangoutId,
         val hangoutName: String,
         val hostId: UserId,
+        val leaverId: UserId,
         val leaverDisplayName: String,
         override val eventKey: String = HangoutEventConstants.HANGOUT_PARTICIPANT_LEFT_KEY
     ) : HangoutEvent(), LynkEvent
@@ -58,5 +67,22 @@ sealed class HangoutEvent(
         val recipientIds: Set<UserId>,
         val hostDisplayName: String,
         override val eventKey: String = HangoutEventConstants.HANGOUT_CANCELLED_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class PaymentDeadlineResolved(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val hostId: UserId,
+        val needsDecision: Boolean,
+        val unpaidCount: Int,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PAYMENT_DEADLINE_RESOLVED_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class PayoutOutcome(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val hostId: UserId,
+        val succeeded: Boolean,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PAYOUT_OUTCOME_KEY
     ) : HangoutEvent(), LynkEvent
 }

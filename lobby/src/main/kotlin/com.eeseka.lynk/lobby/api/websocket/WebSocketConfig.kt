@@ -10,6 +10,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 class WebSocketConfig(
     private val handler: LobbyWebSocketHandler,
+    private val handshakeInterceptor: LobbyHandshakeInterceptor,
     @param:Value("\${lynk.web-socket.allowed-origin}")
     private val allowedOrigin: String
 ) : WebSocketConfigurer {
@@ -17,6 +18,7 @@ class WebSocketConfig(
     override fun registerWebSocketHandlers(registry: WebSocketHandlerRegistry) {
         registry
             .addHandler(handler, "/ws/lobby")
+            .addInterceptors(handshakeInterceptor)
             .setAllowedOrigins(allowedOrigin)
     }
 }

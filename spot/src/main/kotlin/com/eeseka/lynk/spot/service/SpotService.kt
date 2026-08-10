@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Service
@@ -21,7 +22,7 @@ class SpotService(
     private val googlePlacesClient: GooglePlacesClient,
     private val savedSpotRepository: SavedSpotRepository
 ) {
-    private val logger = LoggerFactory.getLogger(SpotService::class.java)
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int, userId: UserId): List<Spot> {
         val rawSpots = googlePlacesClient.getTrendingSpots(latitude, longitude, limit)
@@ -94,6 +95,7 @@ class SpotService(
         }
     }
 
+    @Transactional
     fun unsaveSpot(spotId: String, userId: UserId) {
         savedSpotRepository.deleteByUserIdAndGooglePlaceId(userId = userId, googlePlaceId = spotId)
     }
@@ -107,7 +109,7 @@ class SpotService(
         // Saved spots are used for a list screen that needs few data.
         // It saves API costs to pull locally as there is no way to pass a list of IDs
         // and make the Google API return only those items efficiently.
-        val savedEntities = savedSpotRepository.findByUserIdBefore(
+        val savedEntities = savedSpotRepository.findByUserIdAndCreatedAtBeforeAndNameContaining(
             userId = userId,
             before = before ?: Instant.now(),
             query = query,

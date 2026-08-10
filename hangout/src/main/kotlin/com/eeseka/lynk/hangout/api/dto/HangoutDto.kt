@@ -18,7 +18,7 @@ data class HangoutDto(
     val maxAttendees: Int?,
     val participantCount: Int,
     val chosenSpot: SpotDto?,
-    val totalCost: Double?,
     val participants: List<HangoutParticipantDto>,
+    val payment: HangoutPaymentDto?,
     val createdAt: Instant
 )

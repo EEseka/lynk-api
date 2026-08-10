@@ -16,7 +16,7 @@ import java.time.Instant
     name = "refresh_tokens",
     schema = "user_service",
     indexes = [
-        Index(name = "idx_refresh_tokens_user_id", columnList = "user_id"),
+        // user_id alone needs no index of its own - it is the leftmost column here, so this covers both.
         Index(name = "idx_refresh_tokens_user_token", columnList = "user_id,hashed_token"),
     ]
 )

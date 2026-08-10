@@ -1,6 +1,6 @@
 package com.eeseka.lynk.user.infra.storage
 
-import com.eeseka.lynk.common.domain.exception.StorageException
+import com.eeseka.lynk.user.domain.exception.StorageException
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.model.ProfilePictureUploadCredentials

@@ -135,7 +135,10 @@ class AuthService(
 
     private fun generateAuthResponse(userEntity: UserEntity): AuthenticatedUser {
         val userId = userEntity.id!!
-        val newAccessToken = jwtService.generateAccessToken(userId)
+        val newAccessToken = jwtService.generateAccessToken(
+            userId = userId,
+            isGuest = userEntity.authProvider == AuthProvider.GUEST
+        )
         val newRefreshToken = jwtService.generateRefreshToken(userId)
 
         storeRefreshToken(userId, newRefreshToken)

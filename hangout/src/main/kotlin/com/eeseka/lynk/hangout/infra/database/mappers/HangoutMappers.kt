@@ -2,17 +2,20 @@ package com.eeseka.lynk.hangout.infra.database.mappers
 
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
+import com.eeseka.lynk.hangout.domain.model.HangoutPayment
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutPaymentEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutUserEntity
 
 fun HangoutUserEntity.toHangoutUser(): HangoutUser {
     return HangoutUser(
         userId = userId,
+        email = email,
         username = username,
         displayName = displayName,
         profilePictureUrl = profilePictureUrl
@@ -22,6 +25,7 @@ fun HangoutUserEntity.toHangoutUser(): HangoutUser {
 fun HangoutUser.toHangoutUserEntity(): HangoutUserEntity {
     return HangoutUserEntity(
         userId = userId,
+        email = email,
         username = username,
         displayName = displayName,
         profilePictureUrl = profilePictureUrl
@@ -30,10 +34,7 @@ fun HangoutUser.toHangoutUserEntity(): HangoutUserEntity {
 
 fun HangoutParticipantEntity.toHangoutParticipant(): HangoutParticipant {
     return HangoutParticipant(
-        userId = hangoutUser.userId,
-        username = hangoutUser.username,
-        displayName = hangoutUser.displayName,
-        profilePictureUrl = hangoutUser.profilePictureUrl,
+        user = hangoutUser.toHangoutUser(),
         rsvpStatus = rsvpStatus,
         hasPaid = hasPaid
     )
@@ -51,9 +52,19 @@ fun HangoutEntity.toHangout(): Hangout {
         maxAttendees = maxAttendees,
         participantCount = participantCount,
         chosenSpotID = chosenSpotId,
-        totalCost = totalCost,
         participants = participants.map { it.toHangoutParticipant() },
+        payment = payment?.toHangoutPayment(),
         createdAt = createdAt
+    )
+}
+
+fun HangoutPaymentEntity.toHangoutPayment(): HangoutPayment {
+    return HangoutPayment(
+        totalCostKobo = totalCostKobo,
+        costPerPersonKobo = costPerPersonKobo,
+        splitHeadcount = splitHeadcount,
+        deadline = deadline,
+        state = state
     )
 }
 

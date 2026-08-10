@@ -29,7 +29,8 @@ class SecurityConfig {
                         "/api/auth/google",
                         "/api/auth/guest",
                         "/api/auth/refresh",
-                        "/api/auth/apiKey"
+                        "/api/auth/apiKey",
+                        "/api/payments/webhook"
                     )
                     .permitAll()
                     .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)

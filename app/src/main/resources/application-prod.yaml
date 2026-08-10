@@ -20,6 +20,8 @@ lynk:
   rate-limit:
     ip:
       apply-limit: true
+    user:
+      apply-limit: true
   web-socket:
     allowed-origin: "https://lynkapp.com"
 

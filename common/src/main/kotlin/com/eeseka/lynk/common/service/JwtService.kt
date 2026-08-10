@@ -23,11 +23,12 @@ class JwtService(
     private val accessTokenValidityMs = expirationMinutes * 60 * 1000L
     val refreshTokenValidityMs = 30 * 24 * 60 * 60 * 1000L
 
-    fun generateAccessToken(userId: UserId): String {
+    fun generateAccessToken(userId: UserId, isGuest: Boolean): String {
         return generateToken(
             userId = userId,
             type = "access",
-            expiry = accessTokenValidityMs
+            expiry = accessTokenValidityMs,
+            isGuest = isGuest
         )
     }
 
@@ -51,6 +52,15 @@ class JwtService(
         return tokenType == "refresh"
     }
 
+    fun isGuestAccessToken(token: String): Boolean {
+        val claims = parseAllClaims(token) ?: throw InvalidTokenException(
+            message = "The attached JWT token is not valid"
+        )
+        return claims["guest"] as? Boolean ?: throw InvalidTokenException(
+            message = "The attached JWT token does not say whether it belongs to a guest"
+        )
+    }
+
     fun getUserIdFromToken(token: String): UserId {
         val claims = parseAllClaims(token) ?: throw InvalidTokenException(
             message = "The attached JWT token is not valid"
@@ -61,13 +71,15 @@ class JwtService(
     private fun generateToken(
         userId: UserId,
         type: String,
-        expiry: Long
+        expiry: Long,
+        isGuest: Boolean? = null
     ): String {
         val now = Date()
         val expiryDate = Date(now.time + expiry)
         return Jwts.builder()
             .subject(userId.toString())
             .claim("type", type)
+            .apply { isGuest?.let { claim("guest", it) } }
             .issuedAt(now)
             .expiration(expiryDate)
             .signWith(secretKey, Jwts.SIG.HS256)

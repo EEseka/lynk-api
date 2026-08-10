@@ -1,7 +1,8 @@
 package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.util.requestUserId
-import com.eeseka.lynk.user.api.config.IpRateLimit
+import com.eeseka.lynk.common.api.config.AllowGuest
+import com.eeseka.lynk.common.api.config.IpRateLimit
 import com.eeseka.lynk.user.api.dto.AuthenticatedUserDto
 import com.eeseka.lynk.user.api.dto.GoogleLoginRequest
 import com.eeseka.lynk.user.api.dto.RefreshRequest
@@ -31,7 +32,7 @@ class AuthController(
 
     @PostMapping("/guest")
     @IpRateLimit(
-        requests = 50,
+        requests = 20,
         duration = 1L,
         unit = TimeUnit.HOURS
     )
@@ -51,6 +52,7 @@ class AuthController(
         return authService.refresh(body.refreshToken).toAuthenticatedUserDto()
     }
 
+    @AllowGuest
     @PostMapping("/logout")
     fun logout(
         @Valid @RequestBody body: RefreshRequest
@@ -58,6 +60,7 @@ class AuthController(
         authService.logout(body.refreshToken)
     }
 
+    @AllowGuest
     @DeleteMapping("/account")
     fun deleteAccount() {
         authService.deleteAccount(requestUserId)
