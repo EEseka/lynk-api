@@ -100,6 +100,11 @@ class SpotService(
         savedSpotRepository.deleteByUserIdAndGooglePlaceId(userId = userId, googlePlaceId = spotId)
     }
 
+    @Transactional
+    fun deleteAllSavedSpots(userId: UserId) {
+        savedSpotRepository.deleteAllByUserId(userId)
+    }
+
     fun getSavedSpots(
         before: Instant?,
         pageSize: Int,

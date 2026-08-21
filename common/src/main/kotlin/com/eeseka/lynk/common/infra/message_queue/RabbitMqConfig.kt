@@ -85,6 +85,12 @@ class RabbitMqConfig {
     )
 
     @Bean
+    fun spotUserEventsQueue() = Queue(
+        MessageQueues.SPOT_USER_EVENTS,
+        true
+    )
+
+    @Bean
     fun paymentHangoutEventsQueue() = Queue(
         MessageQueues.PAYMENT_HANGOUT_EVENTS,
         true
@@ -119,6 +125,17 @@ class RabbitMqConfig {
     ): Binding {
         return BindingBuilder
             .bind(hangoutUserEventsQueue)
+            .to(userExchange)
+            .with("user.*")
+    }
+
+    @Bean
+    fun spotUserEventsBinding(
+        spotUserEventsQueue: Queue,
+        userExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(spotUserEventsQueue)
             .to(userExchange)
             .with("user.*")
     }

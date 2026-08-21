@@ -37,7 +37,7 @@ class HangoutUserEventListener(
                 )
             }
             is UserEvent.Deleted -> {
-                hangoutUserService.deleteHangoutUser(event.userId)
+                hangoutUserService.anonymiseHangoutUser(event.userId)
             }
             else -> Unit
         }

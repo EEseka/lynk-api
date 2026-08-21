@@ -2,6 +2,7 @@ package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.user.api.dto.CreateProfileRequest
 import com.eeseka.lynk.user.api.dto.GenerateProfilePictureUploadUrlRequest
 import com.eeseka.lynk.user.api.dto.ProfilePictureUploadResponse
 import com.eeseka.lynk.user.api.dto.UpdateProfileRequest
@@ -18,6 +19,11 @@ import java.util.concurrent.TimeUnit
 class UserController(
     private val userService: UserService
 ) {
+
+    @GetMapping("/me")
+    fun getCurrentUser(): UserDto {
+        return userService.getUser(requestUserId).toUserDto()
+    }
 
     @GetMapping("/username-available")
     fun isUsernameAvailable(
@@ -42,13 +48,24 @@ class UserController(
         ).toResponse()
     }
 
+    @PostMapping("/profile")
+    fun createProfile(
+        @Valid @RequestBody body: CreateProfileRequest
+    ): UserDto {
+        return userService.createProfile(
+            userId = requestUserId,
+            username = body.username,
+            displayName = body.displayName,
+            profilePhotoUrl = body.profilePhotoUrl
+        ).toUserDto()
+    }
+
     @PutMapping("/profile")
     fun updateProfile(
         @Valid @RequestBody body: UpdateProfileRequest
     ): UserDto {
         return userService.updateProfile(
             userId = requestUserId,
-            username = body.username,
             displayName = body.displayName,
             profilePhotoUrl = body.profilePhotoUrl
         ).toUserDto()
