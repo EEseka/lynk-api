@@ -16,6 +16,10 @@ class HangoutUserService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        private const val DELETED_USER_DISPLAY_NAME = "Deleted user"
+    }
+
     fun createHangoutUser(hangoutUser: HangoutUser) {
         hangoutUserRepository.save(hangoutUser.toHangoutUserEntity())
     }
@@ -37,8 +41,25 @@ class HangoutUserService(
         )
     }
 
-    fun deleteHangoutUser(userId: UserId) {
-        hangoutUserRepository.deleteById(userId)
+    /**
+     * Blanks the user out instead of deleting the row. Participant rows point at this record with a
+     * foreign key, so deleting it would either fail outright or tear their name out of hangouts
+     * other people still remember being at. The personal data goes; the seat at the table stays.
+     */
+    fun anonymiseHangoutUser(userId: UserId) {
+        val hangoutUserEntity = hangoutUserRepository.findByIdOrNull(userId) ?: run {
+            logger.warn("Deleted event received for unknown HangoutUser $userId, skipping!")
+            return
+        }
+
+        hangoutUserRepository.save(
+            hangoutUserEntity.apply {
+                this.email = "deleted+$userId@lynk.invalid"
+                this.username = "deleted_$userId"
+                this.displayName = DELETED_USER_DISPLAY_NAME
+                this.profilePictureUrl = null
+            }
+        )
     }
 
     fun getHangoutUserByUsername(username: String): HangoutUser {

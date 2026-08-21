@@ -32,12 +32,7 @@ class UserService(
 
     fun isUsernameAvailable(username: String): Boolean {
         val normalizedUsername = username.trim().lowercase()
-
-        if (reservedUsernames.contains(normalizedUsername)) {
-            return false
-        }
-
-        return !userRepository.existsByUsername(normalizedUsername)
+        return normalizedUsername !in reservedUsernames && !userRepository.existsByUsername(normalizedUsername)
     }
 
     fun generateProfilePictureUploadUrl(
@@ -47,8 +42,13 @@ class UserService(
         return supabaseUserStorageService.generateSignedUploadUrl(userId = userId, mimeType = mimeType)
     }
 
+    fun getUser(userId: UserId): User {
+        val userEntity = userRepository.findByIdOrNull(userId) ?: throw UserNotFoundException()
+        return userEntity.toUser()
+    }
+
     @Transactional
-    fun updateProfile(
+    fun createProfile(
         userId: UserId,
         username: String,
         displayName: String,
@@ -56,36 +56,26 @@ class UserService(
     ): User {
         val userEntity = userRepository.findByIdOrNull(userId) ?: throw UserNotFoundException()
 
+        if (userEntity.username != null) {
+            throw UsernameAlreadySetException()
+        }
+
         val normalizedUsername = username.trim().lowercase()
         val cleanDisplayName = displayName.trim()
 
-        val isUsernameChanged = userEntity.username != normalizedUsername
-        val isDisplayNameChanged = userEntity.displayName != cleanDisplayName
-        val isPhotoChanged = userEntity.profilePhotoUrl != profilePhotoUrl
-
-        if (!isUsernameChanged && !isDisplayNameChanged && !isPhotoChanged) {
-            return userEntity.toUser()
+        if (normalizedUsername in reservedUsernames) {
+            throw UserAlreadyExistsException()
+        }
+        if (userRepository.existsByUsername(normalizedUsername)) {
+            throw UserAlreadyExistsException()
         }
 
-        if (isUsernameChanged) {
-            if (userEntity.username != null) {
-                throw UsernameAlreadySetException()
-            }
-            if (reservedUsernames.contains(normalizedUsername)) {
-                throw UserAlreadyExistsException()
-            }
-            if (userRepository.existsByUsername(normalizedUsername)) {
-                throw UserAlreadyExistsException()
-            }
-        }
-
-        // Validate Supabase URL (Allows Google URLs to pass safely)
-        if (isPhotoChanged && profilePhotoUrl != null && profilePhotoUrl.contains("supabase.co") && !profilePhotoUrl.startsWith(supabaseUrl)) {
-            throw InvalidProfilePictureException("Invalid profile picture URL.")
-        }
-
-        val oldUsername = userEntity.username
         val oldPhotoUrl = userEntity.profilePhotoUrl
+        val isPhotoChanged = oldPhotoUrl != profilePhotoUrl
+
+        if (isPhotoChanged) {
+            validateProfilePhotoUrl(profilePhotoUrl)
+        }
 
         val savedUser = userRepository.save(
             userEntity.apply {
@@ -95,44 +85,89 @@ class UserService(
             }
         )
 
-        // Handed to a listener that runs after this commits, so the call to Supabase happens with no
-        // database connection held and never deletes a file a rolled-back profile still points at.
-        if (isPhotoChanged && oldPhotoUrl != null && oldPhotoUrl.startsWith(supabaseUrl)) {
-            applicationEventPublisher.publishEvent(
-                ProfilePictureReplacedEvent(userId = userId, oldPhotoUrl = oldPhotoUrl)
-            )
+        if (isPhotoChanged) {
+            requestOldPhotoDeletion(userId = userId, oldPhotoUrl = oldPhotoUrl)
         }
 
-        // New Profile Setup
-        if (oldUsername == null) {
-            // This safely guarantees the compiler that these values are NOT null.
-            // If an attacker tries to hit this with a guest account, it throws a clean,
-            // readable error instead of a catastrophic NullPointerException.
-            val safeEmail = requireNotNull(savedUser.email) { "Cannot complete profile without an email" }
-            val safeUsername = requireNotNull(savedUser.username) { "Cannot complete profile without a username" }
-            val safeDisplayName =
-                requireNotNull(savedUser.displayName) { "Cannot complete profile without a display name" }
+        // The email is the only field here we did not just write ourselves, and a guest has none.
+        val safeEmail = requireNotNull(savedUser.email) { "Cannot complete profile without an email" }
 
-            eventPublisher.publish(
-                UserEvent.ProfileCompleted(
-                    userId = savedUser.id!!,
-                    email = safeEmail,
-                    username = safeUsername,
-                    displayName = safeDisplayName,
-                    profilePictureUrl = savedUser.profilePhotoUrl
-                )
+        eventPublisher.publish(
+            UserEvent.ProfileCompleted(
+                userId = userId,
+                email = safeEmail,
+                username = normalizedUsername,
+                displayName = cleanDisplayName,
+                profilePictureUrl = profilePhotoUrl
             )
-        } else {
-            // Existing Profile Update
-            eventPublisher.publish(
-                UserEvent.ProfileUpdated(
-                    userId = savedUser.id!!,
-                    displayName = savedUser.displayName!!,
-                    profilePictureUrl = savedUser.profilePhotoUrl
-                )
-            )
-        }
+        )
 
         return savedUser.toUser()
+    }
+
+    @Transactional
+    fun updateProfile(
+        userId: UserId,
+        displayName: String,
+        profilePhotoUrl: String?
+    ): User {
+        val userEntity = userRepository.findByIdOrNull(userId) ?: throw UserNotFoundException()
+
+        val cleanDisplayName = displayName.trim()
+
+        val oldPhotoUrl = userEntity.profilePhotoUrl
+        val isDisplayNameChanged = userEntity.displayName != cleanDisplayName
+        val isPhotoChanged = oldPhotoUrl != profilePhotoUrl
+
+        if (!isDisplayNameChanged && !isPhotoChanged) {
+            return userEntity.toUser()
+        }
+
+        if (isPhotoChanged) {
+            validateProfilePhotoUrl(profilePhotoUrl)
+        }
+
+        val savedUser = userRepository.save(
+            userEntity.apply {
+                this.displayName = cleanDisplayName
+                this.profilePhotoUrl = profilePhotoUrl
+            }
+        )
+
+        if (isPhotoChanged) {
+            requestOldPhotoDeletion(userId = userId, oldPhotoUrl = oldPhotoUrl)
+        }
+
+        eventPublisher.publish(
+            UserEvent.ProfileUpdated(
+                userId = userId,
+                displayName = cleanDisplayName,
+                profilePictureUrl = profilePhotoUrl
+            )
+        )
+
+        return savedUser.toUser()
+    }
+
+    private fun validateProfilePhotoUrl(profilePhotoUrl: String?) {
+        if (profilePhotoUrl != null &&
+            profilePhotoUrl.contains("supabase.co") &&
+            !profilePhotoUrl.startsWith(supabaseUrl)
+        ) {
+            throw InvalidProfilePictureException("Invalid profile picture URL.")
+        }
+    }
+
+    // Handed to a listener that runs after this commits, so the call to Supabase happens with no
+    // database connection held and never deletes a file a rolled-back profile still points at.
+    // Photos we did not upload (Google's) are not ours to delete.
+    private fun requestOldPhotoDeletion(userId: UserId, oldPhotoUrl: String?) {
+        if (oldPhotoUrl == null || !oldPhotoUrl.startsWith(supabaseUrl)) {
+            return
+        }
+
+        applicationEventPublisher.publishEvent(
+            ProfilePictureReplacedEvent(userId = userId, oldPhotoUrl = oldPhotoUrl)
+        )
     }
 }

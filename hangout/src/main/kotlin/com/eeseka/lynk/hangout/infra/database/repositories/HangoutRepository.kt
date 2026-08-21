@@ -142,4 +142,27 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         AND h.payment.state IS NULL
     """)
     fun deleteSoloUnpaidHangoutsScheduledBefore(cutoff: Instant)
+
+    @Query("""
+        SELECT COUNT(h)
+        FROM HangoutEntity h
+        WHERE h.hostId = :userId
+        AND h.status = :completedStatus
+    """)
+    fun countByHostIdAndStatus(userId: UserId, completedStatus: HangoutStatus): Long
+
+    // Account deletion guard: a hangout this user is still hosting that has not finished.
+    fun existsByHostIdAndStatusIn(hostId: UserId, statuses: Collection<HangoutStatus>): Boolean
+
+    // Account deletion guard: money of theirs, or money owed to them, that has not settled yet.
+    @Query("""
+        SELECT COUNT(h) > 0
+        FROM HangoutEntity h
+        WHERE h.hostId = :hostId
+        AND h.payment.state IN :paymentStates
+    """)
+    fun existsByHostIdAndPaymentStateIn(
+        hostId: UserId,
+        paymentStates: Collection<PaymentState>
+    ): Boolean
 }

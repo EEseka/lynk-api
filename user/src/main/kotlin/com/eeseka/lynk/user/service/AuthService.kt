@@ -1,5 +1,6 @@
 package com.eeseka.lynk.user.service
 
+import com.eeseka.lynk.common.domain.AccountDeletionGuard
 import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.domain.exception.InvalidTokenException
 import com.eeseka.lynk.common.domain.type.UserId
@@ -28,7 +29,8 @@ class AuthService(
     private val jwtService: JwtService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val eventPublisher: EventPublisher,
-    private val googleAuthService: GoogleAuthService
+    private val googleAuthService: GoogleAuthService,
+    private val accountDeletionGuards: List<AccountDeletionGuard>
 ) {
 
     @Transactional
@@ -108,6 +110,13 @@ class AuthService(
         if (!userRepository.existsById(userId)) {
             throw UserNotFoundException()
         }
+
+        // Asked before anything is removed, so a refusal leaves the account exactly as it was.
+        // Each module answers for its own data; the throw travels straight back to the caller.
+        accountDeletionGuards.forEach { guard ->
+            guard.assertAccountCanBeDeleted(userId)
+        }
+
         refreshTokenRepository.deleteByUserId(userId)
         userRepository.deleteById(userId)
 

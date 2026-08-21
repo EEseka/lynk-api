@@ -7,6 +7,7 @@ import com.eeseka.lynk.hangout.api.dto.CreateHangoutRequest
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
 import com.eeseka.lynk.hangout.api.dto.HangoutParticipantDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPreviewDto
+import com.eeseka.lynk.hangout.api.dto.HangoutStatsDto
 import com.eeseka.lynk.hangout.api.dto.HangoutSummaryDto
 import com.eeseka.lynk.hangout.api.dto.InviteParticipantRequest
 import com.eeseka.lynk.hangout.api.dto.RsvpRequest
@@ -14,6 +15,7 @@ import com.eeseka.lynk.hangout.api.dto.UpdateHangoutRequest
 import com.eeseka.lynk.hangout.api.mappers.toHangoutDto
 import com.eeseka.lynk.hangout.api.mappers.toHangoutParticipantDto
 import com.eeseka.lynk.hangout.api.mappers.toHangoutPreviewDto
+import com.eeseka.lynk.hangout.api.mappers.toHangoutStatsDto
 import com.eeseka.lynk.hangout.api.mappers.toHangoutSummaryDto
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
@@ -122,6 +124,11 @@ class HangoutController(
             vibe = vibe,
             query = query
         ).map { it.toHangoutSummaryDto() }
+    }
+
+    @GetMapping("/stats/me")
+    fun getMyStats(): HangoutStatsDto {
+        return hangoutService.getStats(requestUserId).toHangoutStatsDto()
     }
 
     @DeleteMapping("/{hangoutId}")

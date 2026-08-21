@@ -99,4 +99,12 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
         newStatus: RefundStatus,
         expectedStatus: RefundStatus
     ): Int
+
+    // Account deletion guard: a charge still in flight, or a refund this user is still owed.
+    fun existsByUserIdAndStatus(userId: UserId, status: PaymentStatus): Boolean
+
+    fun existsByUserIdAndRefundStatusIn(
+        userId: UserId,
+        refundStatuses: Collection<RefundStatus>
+    ): Boolean
 }

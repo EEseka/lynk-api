@@ -45,6 +45,10 @@ class PayoutService(
                 if (succeeded) {
                     paidOutAt = Instant.now()
                     payoutFailureReason = null
+                    recipientCode = ""
+                    bankName = null
+                    accountNumberLast4 = ""
+                    accountHolderName = ""
                 } else {
                     payoutFailureReason = reason?.take(255) ?: "The transfer did not go through"
                     this.transferReference = null

@@ -18,6 +18,7 @@ import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalStateException
 import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
+import com.eeseka.lynk.hangout.domain.model.HangoutStats
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
@@ -238,6 +239,20 @@ class HangoutService(
             query = query,
             pageable = PageRequest.of(0, pageSize)
         ).content.map { it.toHangoutSummary() }
+    }
+
+    fun getStats(userId: UserId): HangoutStats {
+        return HangoutStats(
+            hostedCount = hangoutRepository.countByHostIdAndStatus(
+                userId = userId,
+                completedStatus = HangoutStatus.COMPLETED
+            ),
+            attendedCount = hangoutParticipantRepository.countAttendedAsGuestByUserIdAndStatus(
+                userId = userId,
+                attendingStatus = RsvpStatus.ATTENDING,
+                completedStatus = HangoutStatus.COMPLETED
+            )
+        )
     }
 
     @Transactional
