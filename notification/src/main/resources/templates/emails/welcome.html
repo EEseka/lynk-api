@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'Welcome to Lynk')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        Welcome to Lynk, <span th:text="${displayName}">Alex</span>!
+    </h1>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        Your profile is set up, so you are ready to go. You can be found as
+        <strong th:text="'@' + ${username}">@alex</strong>.
+    </p>
+
+    <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        Start a hangout, invite the people you want there, vote on where to go, and split the bill
+        without anyone having to chase anyone.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    We will email you about the things that involve money - a hangout being called off, a refund,
+                    a payout. Everything else arrives as a notification in the app.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

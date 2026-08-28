@@ -58,7 +58,9 @@ class PayoutService(
 
         hangoutService.recordPayoutOutcome(
             hangoutId = payoutAccount.hangoutId,
-            succeeded = succeeded
+            succeeded = succeeded,
+            reference = transferReference,
+            amountKobo = collectedKoboFor(payoutAccount.hangoutId)
         )
     }
 
@@ -105,17 +107,16 @@ class PayoutService(
         val payoutAccount = hangoutPayoutAccountRepository.findByHangoutId(hangoutId)
             ?: throw PaymentIllegalStateException("This hangout has no payout account.")
 
-        val collectedKobo = paymentRepository
-            .findAllByHangoutIdAndStatusAndRefundStatus(
-                hangoutId = hangoutId,
-                status = PaymentStatus.SUCCESS,
-                refundStatus = RefundStatus.NONE
-            )
-            .sumOf { it.netAmountKobo }
+        val collectedKobo = collectedKoboFor(hangoutId)
 
         if (collectedKobo <= 0) {
             logger.info("Nothing collected for hangout {}, marking it paid out", hangoutId)
-            hangoutService.recordPayoutOutcome(hangoutId = hangoutId, succeeded = true)
+            hangoutService.recordPayoutOutcome(
+                hangoutId = hangoutId,
+                succeeded = true,
+                reference = null,
+                amountKobo = 0
+            )
             return
         }
 
@@ -145,7 +146,12 @@ class PayoutService(
                     this.transferReference = null
                 }
             )
-            hangoutService.recordPayoutOutcome(hangoutId = hangoutId, succeeded = false)
+            hangoutService.recordPayoutOutcome(
+                hangoutId = hangoutId,
+                succeeded = false,
+                reference = transferReference,
+                amountKobo = collectedKobo
+            )
 
             logger.error("Payout for hangout {} was refused: {}", hangoutId, e.message)
             return
@@ -159,4 +165,11 @@ class PayoutService(
 
         logger.info("Payout of {} kobo accepted for hangout {}", collectedKobo, hangoutId)
     }
+
+    private fun collectedKoboFor(hangoutId: HangoutId): Long =
+        paymentRepository.sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+            hangoutId = hangoutId,
+            status = PaymentStatus.SUCCESS,
+            refundStatus = RefundStatus.NONE
+        )
 }

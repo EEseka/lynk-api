@@ -9,6 +9,7 @@ import com.eeseka.lynk.hangout.infra.database.repositories.HangoutUserRepository
 import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class HangoutUserService(
@@ -24,6 +25,7 @@ class HangoutUserService(
         hangoutUserRepository.save(hangoutUser.toHangoutUserEntity())
     }
 
+    @Transactional
     fun updateHangoutUser(
         userId: UserId,
         displayName: String,
@@ -46,6 +48,7 @@ class HangoutUserService(
      * foreign key, so deleting it would either fail outright or tear their name out of hangouts
      * other people still remember being at. The personal data goes; the seat at the table stays.
      */
+    @Transactional
     fun anonymiseHangoutUser(userId: UserId) {
         val hangoutUserEntity = hangoutUserRepository.findByIdOrNull(userId) ?: run {
             logger.warn("Deleted event received for unknown HangoutUser $userId, skipping!")

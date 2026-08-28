@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'Sorry to see you go')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        We will miss you<span th:if="${displayName}" th:text="', ' + ${displayName}">, Alex</span>
+    </h1>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        Your Lynk account is closed. Thank you for the hangouts you planned, the ones you showed up to,
+        and for trusting us with them.
+    </p>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        If something about Lynk pushed you away, we would genuinely like to hear it - just reply to this
+        email. We read everyone, and it is how the app gets better.
+    </p>
+
+    <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        And if you ever fancy another round, the door is open. Sign up whenever you like - though
+        nothing from the old account carries over.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0 0 10px; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Your personal details are deleted, and your name has been removed from the hangouts you were
+                    part of.
+                </p>
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Records of payments and payouts are kept because we are required to hold onto them. They are
+                    no longer linked to a profile.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

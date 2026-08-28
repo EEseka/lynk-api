@@ -77,6 +77,18 @@ class HangoutParticipantService(
 
         markReadyForPayoutIfEveryoneHasPaid(hangoutId)
 
+        val hangout = participant.hangout
+        eventPublisher.publish(
+            HangoutEvent.PaymentReceived(
+                hangoutId = hangoutId,
+                hangoutName = hangout.name,
+                hostId = hangout.hostId,
+                payerId = userId,
+                payerDisplayName = participant.hangoutUser.displayName,
+                amountKobo = hangout.payment?.costPerPersonKobo
+            )
+        )
+
         applicationEventPublisher.publishEvent(
             HangoutPaymentReceivedEvent(
                 hangoutId = hangoutId,
@@ -262,7 +274,7 @@ class HangoutParticipantService(
 
         val withdrawnDisplayName = participant.hangoutUser.displayName
 
-        hangoutParticipantRepository.delete(participant)
+        hangout.participants.remove(participant)
 
         // Host is always an ATTENDING participant, so first { } is safe and non-null.
         val hostDisplayName = hangout.participants
@@ -308,7 +320,7 @@ class HangoutParticipantService(
 
         nonPayers.forEach { participant ->
             val removedDisplayName = participant.hangoutUser.displayName
-            hangoutParticipantRepository.delete(participant)
+            hangout.participants.remove(participant)
 
             eventPublisher.publish(
                 HangoutEvent.RemovedForNonPayment(

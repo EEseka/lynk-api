@@ -8,8 +8,6 @@ import org.springframework.data.redis.cache.RedisCacheManager
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory
 import org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer
 import org.springframework.data.redis.serializer.RedisSerializationContext
-import tools.jackson.databind.DefaultTyping
-import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator
 import tools.jackson.module.kotlin.kotlinModule
 import java.time.Duration
@@ -30,19 +28,19 @@ class RedisConfig {
             .allowIfSubType("com.eeseka.lynk.")
             .build()
 
-        val objectMapper = JsonMapper.builder()
-            .addModule(kotlinModule())
-            .findAndAddModules()
-            .polymorphicTypeValidator(polymorphicTypeValidator)
-            .activateDefaultTyping(polymorphicTypeValidator, DefaultTyping.NON_FINAL)
+        val redisSerializer = GenericJacksonJsonRedisSerializer.builder()
+            .enableDefaultTyping(polymorphicTypeValidator)
+            .customize { mapperBuilder ->
+                mapperBuilder
+                    .addModule(kotlinModule())
+                    .findAndAddModules()
+            }
             .build()
 
         val defaultCacheConfig = RedisCacheConfiguration.defaultCacheConfig()
             .entryTtl(Duration.ofHours(1L))
             .serializeValuesWith(
-                RedisSerializationContext.SerializationPair.fromSerializer(
-                    GenericJacksonJsonRedisSerializer(objectMapper)
-                )
+                RedisSerializationContext.SerializationPair.fromSerializer(redisSerializer)
             )
 
         return RedisCacheManager.builder(connectionFactory)

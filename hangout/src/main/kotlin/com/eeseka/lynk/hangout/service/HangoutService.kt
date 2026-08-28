@@ -1,5 +1,6 @@
 package com.eeseka.lynk.hangout.service
 
+import com.eeseka.lynk.common.domain.events.hangout.HangoutChangeKind
 import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
@@ -55,6 +56,8 @@ class HangoutService(
     private val applicationEventPublisher: ApplicationEventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    private val cancellationRecipientStatuses = listOf(RsvpStatus.ATTENDING, RsvpStatus.PENDING)
 
     @Transactional
     fun createHangout(
@@ -146,10 +149,32 @@ class HangoutService(
             }
         }
 
+        val cleanName = name.trim()
+        val cleanDescription = description?.trim()
+
+        val changes = buildSet {
+            if (hangoutEntity.name != cleanName ||
+                hangoutEntity.description != cleanDescription ||
+                hangoutEntity.vibe != vibe ||
+                hangoutEntity.maxAttendees != maxAttendees
+            ) {
+                add(HangoutChangeKind.DETAILS_EDITED)
+            }
+            if (hangoutEntity.scheduledAt != scheduledAt) {
+                add(HangoutChangeKind.SCHEDULE_CHANGED)
+            }
+            if (hangoutEntity.chosenSpotId != spotId) {
+                add(
+                    if (spotId == null) HangoutChangeKind.VOTING_REOPENED
+                    else HangoutChangeKind.SPOT_CHOSEN
+                )
+            }
+        }
+
         val savedHangout = hangoutRepository.save(
             hangoutEntity.apply {
-                this.name = name.trim()
-                this.description = description?.trim()
+                this.name = cleanName
+                this.description = cleanDescription
                 this.vibe = vibe
                 this.status = if (spotId != null) HangoutStatus.SCHEDULED else HangoutStatus.VOTING
                 this.scheduledAt = scheduledAt
@@ -164,15 +189,18 @@ class HangoutService(
             .filter { it.rsvpStatus == RsvpStatus.ATTENDING && it.hangoutUser.userId != hostId }
             .map { it.hangoutUser.userId }
             .toSet()
-        // Push to attendees not in the lobby (schedule/spot may have changed).
-        eventPublisher.publish(
-            HangoutEvent.HangoutUpdated(
-                hangoutId = hangoutId,
-                hangoutName = hangoutEntity.name,
-                recipientIds = recipientIds,
-                hostDisplayName = hostDisplayName
+
+        if (changes.isNotEmpty()) {
+            eventPublisher.publish(
+                HangoutEvent.HangoutUpdated(
+                    hangoutId = hangoutId,
+                    hangoutName = cleanName,
+                    recipientIds = recipientIds,
+                    hostDisplayName = hostDisplayName,
+                    changes = changes
+                )
             )
-        )
+        }
         // Tell everyone in the live lobby to refresh their detail & list view.
         applicationEventPublisher.publishEvent(
             HangoutUpdatedEvent(
@@ -273,7 +301,7 @@ class HangoutService(
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
         val recipientIds = hangoutEntity.participants
-            .filter { it.rsvpStatus == RsvpStatus.ATTENDING && it.hangoutUser.userId != hostId }
+            .filter { it.rsvpStatus in cancellationRecipientStatuses && it.hangoutUser.userId != hostId }
             .map { it.hangoutUser.userId }
             .toSet()
         // Push: attendees must know the plan is off, even if the app is closed.
@@ -337,6 +365,10 @@ class HangoutService(
     fun findHangoutStatus(hangoutId: HangoutId): HangoutStatus? =
         hangoutRepository.findStatusById(hangoutId)
 
+    // What a hangout is called, for callers that only need it to name the hangout in a notification.
+    fun findHangoutName(hangoutId: HangoutId): String? =
+        hangoutRepository.findNameById(hangoutId)
+
     // Lean checks for the live-lobby voting gate.
     fun isVotingOpen(hangoutId: HangoutId): Boolean =
         hangoutRepository.findStatusById(hangoutId) == HangoutStatus.VOTING
@@ -376,7 +408,8 @@ class HangoutService(
                 hangoutId = hangoutId,
                 hangoutName = hangoutEntity.name,
                 recipientIds = recipientIds,
-                hostDisplayName = hostDisplayName
+                hostDisplayName = hostDisplayName,
+                changes = setOf(HangoutChangeKind.SPOT_CHOSEN)
             )
         )
         // Refresh the live lobby (detail now shows the chosen spot + SCHEDULED status).
@@ -422,7 +455,12 @@ class HangoutService(
      * knows whether the money actually moved.
      */
     @Transactional
-    fun recordPayoutOutcome(hangoutId: HangoutId, succeeded: Boolean) {
+    fun recordPayoutOutcome(
+        hangoutId: HangoutId,
+        succeeded: Boolean,
+        reference: String?,
+        amountKobo: Long
+    ) {
         val hangoutEntity = hangoutRepository.findByIdOrNull(hangoutId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
         val payment = hangoutEntity.payment
@@ -439,7 +477,9 @@ class HangoutService(
                 hangoutId = hangoutId,
                 hangoutName = hangoutEntity.name,
                 hostId = hangoutEntity.hostId,
-                succeeded = succeeded
+                succeeded = succeeded,
+                reference = reference,
+                amountKobo = amountKobo
             )
         )
         applicationEventPublisher.publishEvent(
@@ -537,7 +577,8 @@ class HangoutService(
                 hangoutId = hangoutId,
                 hangoutName = hangoutEntity.name,
                 recipientIds = recipientIds,
-                hostDisplayName = hostDisplayName
+                hostDisplayName = hostDisplayName,
+                changes = setOf(HangoutChangeKind.PAYMENTS_ENABLED)
             )
         )
         // Refresh the live lobby so the detail re-fetch picks up the share and the deadline.
@@ -602,6 +643,20 @@ class HangoutService(
 
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
+        val recipientIds = hangoutEntity.participants
+            .filter { it.rsvpStatus == RsvpStatus.ATTENDING && it.hangoutUser.userId != hostId }
+            .map { it.hangoutUser.userId }
+            .toSet()
+        // Push attendees not in the lobby: the date their money is due by has moved.
+        eventPublisher.publish(
+            HangoutEvent.PaymentDeadlineChanged(
+                hangoutId = hangoutId,
+                hangoutName = hangoutEntity.name,
+                recipientIds = recipientIds,
+                hostDisplayName = hostDisplayName,
+                newDeadline = newDeadline
+            )
+        )
         // Refresh the live lobby: the date everyone has to pay by just moved.
         applicationEventPublisher.publishEvent(
             HangoutUpdatedEvent(
@@ -726,13 +781,36 @@ class HangoutService(
     @Scheduled(fixedDelay = 5 * 60 * 1000)
     @Transactional
     fun transitionDueHangoutsToOngoing() {
+        val now = Instant.now()
+        val dueHangouts = hangoutRepository.findByStatusInAndScheduledAtBefore(
+            statuses = listOf(HangoutStatus.SCHEDULED),
+            now = now
+        )
+
         hangoutRepository.transitionDueHangoutsToOngoing(
-            now = Instant.now(),
+            now = now,
             ongoingStatus = HangoutStatus.ONGOING,
             activeStatuses = listOf(HangoutStatus.SCHEDULED)
         )
 
-        // TODO: notify every participant that the hangout has started
+        dueHangouts.forEach { hangout ->
+            val recipientIds = hangout.participants
+                .filter { it.rsvpStatus == RsvpStatus.ATTENDING }
+                .map { it.hangoutUser.userId }
+                .toSet()
+            // Push: nobody is watching the clock, and this is the moment to head out.
+            eventPublisher.publish(
+                HangoutEvent.HangoutStarted(
+                    hangoutId = hangout.id!!,
+                    hangoutName = hangout.name,
+                    recipientIds = recipientIds
+                )
+            )
+        }
+
+        if (dueHangouts.isNotEmpty()) {
+            logger.info("Started {} hangouts whose time had come", dueHangouts.size)
+        }
     }
 
     @Scheduled(cron = "0 0 3 * * *")

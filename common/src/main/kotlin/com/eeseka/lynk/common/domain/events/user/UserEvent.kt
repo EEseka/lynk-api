@@ -36,6 +36,8 @@ sealed class UserEvent(
 
     data class Deleted(
         val userId: UserId,
+        val email: String,
+        val displayName: String?,
         override val eventKey: String = UserEventConstants.USER_DELETED_KEY
     ) : UserEvent(), LynkEvent
 }

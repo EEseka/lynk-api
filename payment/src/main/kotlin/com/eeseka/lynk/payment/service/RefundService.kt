@@ -1,7 +1,9 @@
 package com.eeseka.lynk.payment.service
 
+import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.exception.PaystackUnavailableException
@@ -22,7 +24,8 @@ import java.time.Instant
 class RefundService(
     private val paymentRepository: PaymentRepository,
     private val paystackClient: PaystackClient,
-    private val hangoutService: HangoutService
+    private val hangoutService: HangoutService,
+    private val eventPublisher: EventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -44,6 +47,27 @@ class RefundService(
                 refundStatus = if (succeeded) RefundStatus.PROCESSED else RefundStatus.FAILED
                 if (succeeded) refundedAt = Instant.now()
             }
+        )
+
+        if (!succeeded) return
+
+        val hangoutName = hangoutService.findHangoutName(payment.hangoutId)
+        if (hangoutName == null) {
+            logger.warn(
+                "Refunded {} but hangout {} is gone, so there is nothing to name in a notification",
+                payment.reference, payment.hangoutId
+            )
+            return
+        }
+
+        eventPublisher.publish(
+            HangoutEvent.RefundIssued(
+                hangoutId = payment.hangoutId,
+                hangoutName = hangoutName,
+                participantId = payment.userId,
+                amountKobo = payment.netAmountKobo,
+                reference = payment.reference
+            )
         )
     }
 

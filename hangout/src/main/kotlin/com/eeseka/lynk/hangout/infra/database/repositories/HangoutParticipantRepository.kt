@@ -15,7 +15,7 @@ interface HangoutParticipantRepository : JpaRepository<HangoutParticipantEntity,
     // Used to enforce maxAttendees: count ATTENDING + PENDING (active slots)
     fun countByHangoutIdAndRsvpStatusIn(
         hangoutId: HangoutId,
-        statuses: List<RsvpStatus>
+        statuses: Collection<RsvpStatus>
     ): Int
 
     @Query("""

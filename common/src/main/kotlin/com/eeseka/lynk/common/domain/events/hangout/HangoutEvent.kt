@@ -50,6 +50,7 @@ sealed class HangoutEvent(
         val hangoutName: String,
         val recipientIds: Set<UserId>,
         val hostDisplayName: String,
+        val changes: Set<HangoutChangeKind>,
         override val eventKey: String = HangoutEventConstants.HANGOUT_UPDATED_KEY
     ) : HangoutEvent(), LynkEvent
 
@@ -83,6 +84,43 @@ sealed class HangoutEvent(
         val hangoutName: String,
         val hostId: UserId,
         val succeeded: Boolean,
+        val reference: String?,
+        val amountKobo: Long,
         override val eventKey: String = HangoutEventConstants.HANGOUT_PAYOUT_OUTCOME_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class PaymentDeadlineChanged(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        val hostDisplayName: String,
+        val newDeadline: Instant,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PAYMENT_DEADLINE_CHANGED_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class HangoutStarted(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_STARTED_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class PaymentReceived(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val hostId: UserId,
+        val payerId: UserId,
+        val payerDisplayName: String,
+        val amountKobo: Long?,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PAYMENT_RECEIVED_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class RefundIssued(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val participantId: UserId,
+        val amountKobo: Long,
+        val reference: String,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_REFUND_ISSUED_KEY
     ) : HangoutEvent(), LynkEvent
 }
