@@ -6,6 +6,7 @@ import com.eeseka.lynk.common.domain.exception.InvalidTokenException
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.common.service.JwtService
+import com.eeseka.lynk.user.domain.events.ProfilePictureDeletedEvent
 import com.eeseka.lynk.user.domain.exception.UserNotFoundException
 import com.eeseka.lynk.user.domain.model.AuthenticatedUser
 import com.eeseka.lynk.user.domain.model.AuthProvider
@@ -14,6 +15,8 @@ import com.eeseka.lynk.user.infra.database.entities.UserEntity
 import com.eeseka.lynk.user.infra.database.mappers.toUser
 import com.eeseka.lynk.user.infra.database.repositories.RefreshTokenRepository
 import com.eeseka.lynk.user.infra.database.repositories.UserRepository
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
@@ -30,7 +33,9 @@ class AuthService(
     private val refreshTokenRepository: RefreshTokenRepository,
     private val eventPublisher: EventPublisher,
     private val googleAuthService: GoogleAuthService,
-    private val accountDeletionGuards: List<AccountDeletionGuard>
+    private val accountDeletionGuards: List<AccountDeletionGuard>,
+    private val applicationEventPublisher: ApplicationEventPublisher,
+    @param:Value("\${supabase.url}") private val supabaseUrl: String
 ) {
 
     @Transactional
@@ -107,9 +112,7 @@ class AuthService(
 
     @Transactional
     fun deleteAccount(userId: UserId) {
-        if (!userRepository.existsById(userId)) {
-            throw UserNotFoundException()
-        }
+        val userEntity = userRepository.findByIdOrNull(userId) ?: throw UserNotFoundException()
 
         // Asked before anything is removed, so a refusal leaves the account exactly as it was.
         // Each module answers for its own data; the throw travels straight back to the caller.
@@ -117,11 +120,36 @@ class AuthService(
             guard.assertAccountCanBeDeleted(userId)
         }
 
+        val isGuest = userEntity.authProvider == AuthProvider.GUEST
+        val email = userEntity.email
+        val displayName = userEntity.displayName
+        val profilePhotoUrl = userEntity.profilePhotoUrl
+
         refreshTokenRepository.deleteByUserId(userId)
         userRepository.deleteById(userId)
 
+        requestProfilePhotoDeletion(userId, profilePhotoUrl)
+
+        if (isGuest) return
+
+        val safeEmail = requireNotNull(email) { "A ${userEntity.authProvider} account must have an email" }
+
         eventPublisher.publish(
-            event = UserEvent.Deleted(userId = userId)
+            event = UserEvent.Deleted(
+                userId = userId,
+                email = safeEmail,
+                displayName = displayName
+            )
+        )
+    }
+
+    private fun requestProfilePhotoDeletion(userId: UserId, photoUrl: String?) {
+        if (photoUrl == null || !photoUrl.startsWith(supabaseUrl)) {
+            return
+        }
+
+        applicationEventPublisher.publishEvent(
+            ProfilePictureDeletedEvent(userId = userId, photoUrl = photoUrl)
         )
     }
 

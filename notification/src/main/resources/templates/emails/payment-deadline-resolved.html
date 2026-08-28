@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'The payment deadline has passed')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        The deadline for <span th:text="${hangoutName}">Friday drinks</span> has passed
+    </h1>
+
+    <div th:if="${needsDecision}">
+        <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            <strong th:text="${unpaidCount}">2</strong>
+            <span th:text="${unpaidCount == 1} ? 'person has' : 'people have'">people have</span>
+            not paid their share.
+        </p>
+
+        <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            It is your call now. Open Lynk and either give everyone more time by moving the deadline or
+            go ahead with whoever has paid - the people who have not will be taken off, and the bill split
+            stays as it is.
+        </p>
+
+        <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            If you do nothing, the hangout goes ahead with whoever has paid once its start time arrives.
+        </p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 0;">
+            <tr>
+                <td style="background-color: #4d41df; border-radius: 10px;">
+                    <a th:href="${hangoutUrl}"
+                       style="display: inline-block; padding: 14px 28px; color: #ffffff;
+                              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                              font-size: 16px; font-weight: 700; line-height: 1; text-decoration: none;">
+                        Open the hangout
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div th:unless="${needsDecision}">
+        <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            Everyone has paid. Nothing more for you to do - the money will be sent to your bank account
+            after the hangout.
+        </p>
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Anyone taken off for not paying is told why and is never charged.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'A hangout you were going to has been called off')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        <span th:text="${hangoutName}">Friday drinks</span> is off
+    </h1>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        <strong th:text="${hostDisplayName}">Alex</strong> has canceled this hangout.
+    </p>
+
+    <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        If you had already paid your share, your money is on its way back to you - we send refunds
+        automatically, and you will get a separate email once yours has gone through. If you had not
+        paid, there is nothing to refund.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    If your refund has not arrived within five working days, reply to this email or write to
+                    <a href="mailto:support@lynk.com.ng" class="link"
+                       style="color: #4d41df; text-decoration: underline;">support@lynk.com.ng</a>.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

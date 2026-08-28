@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'About the money from your hangout')}">
+<body>
+<div th:fragment="content">
+    <div th:if="${nothingToSend}">
+        <h1 class="heading"
+            style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                   font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+            There was nothing to pay out for <span th:text="${hangoutName}">Friday drinks</span>
+        </h1>
+
+        <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            No payments were left to send when this hangout settled up - either nobody paid, or
+            everyone who did was refunded. So there is no transfer, and nothing is owed to you.
+        </p>
+    </div>
+
+    <div th:if="${succeeded and !nothingToSend}">
+        <h1 class="heading"
+            style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                   font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+            The money from <span th:text="${hangoutName}">Friday drinks</span> is on its way
+        </h1>
+
+        <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            We have sent <strong th:text="${amount}">&#8358;5,000.00</strong> to the bank account you
+            gave when you turned on payments for this hangout. Depending on your bank, it should land
+            within a few working days.
+        </p>
+    </div>
+
+    <div th:unless="${succeeded}">
+        <h1 class="heading"
+            style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                   font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+            We could not send the money from <span th:text="${hangoutName}">Friday drinks</span>
+        </h1>
+
+        <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            The transfer of <strong th:text="${amount}">&#8358;5,000.00</strong> to your bank account
+            did not go through. The money is safe and still held for you - nothing has been lost.
+        </p>
+
+        <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+            Open the hangout in Lynk and start the payout again. It goes to the same account you gave
+            when you turned on payments, so if it fails a second time, reply to this email and we will
+            sort the account details out with you.
+        </p>
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 28px 0 0;">
+            <tr>
+                <td style="background-color: #4d41df; border-radius: 10px;">
+                    <a th:href="${hangoutUrl}"
+                       style="display: inline-block; padding: 14px 28px; color: #ffffff;
+                              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                              font-size: 16px; font-weight: 700; line-height: 1; text-decoration: none;">
+                        Open the hangout
+                    </a>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           th:if="${reference}" style="margin: 24px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 16px 22px;">
+                <p class="note-text"
+                   style="margin: 0 0 4px; font-size: 12px; line-height: 1.5; letter-spacing: 0.6px;
+                          text-transform: uppercase; color: #777587;">
+                    Reference
+                </p>
+                <p class="mono" th:text="${reference}"
+                   style="margin: 0; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+                          font-size: 15px; line-height: 1.5; letter-spacing: -0.2px; color: #1b1b24;">
+                    lynk_payout_a1b2c3d4
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Anything unclear about a payout? Reply to this email, or write to
+                    <a href="mailto:support@lynk.com.ng" class="link"
+                       style="color: #4d41df; text-decoration: underline;">support@lynk.com.ng</a><span
+                        th:if="${reference}"> with the reference above</span>.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

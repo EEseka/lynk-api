@@ -16,14 +16,14 @@ jwt:
 
 lynk:
   email:
-    url: "https://lynkapp.com"
+    url: "https://lynk.com.ng"
   rate-limit:
     ip:
       apply-limit: true
     user:
       apply-limit: true
   web-socket:
-    allowed-origin: "https://lynkapp.com"
+    allowed-origin: "https://lynk.com.ng"
 
 nginx:
   require-proxy: false

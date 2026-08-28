@@ -170,7 +170,16 @@ class PaymentReconciliationService(
         val transferReference = payoutAccount.transferReference
         if (transferReference == null) {
             logger.error("Hangout {} is paying out but has no transfer reference, releasing it", hangoutId)
-            hangoutService.recordPayoutOutcome(hangoutId = hangoutId, succeeded = false)
+            hangoutService.recordPayoutOutcome(
+                hangoutId = hangoutId,
+                succeeded = false,
+                reference = null,
+                amountKobo = paymentRepository.sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+                    hangoutId = hangoutId,
+                    status = PaymentStatus.SUCCESS,
+                    refundStatus = RefundStatus.NONE
+                )
+            )
             return
         }
 

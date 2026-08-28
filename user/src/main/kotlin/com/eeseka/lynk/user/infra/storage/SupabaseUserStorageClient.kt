@@ -5,14 +5,14 @@ import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.user.domain.exception.InvalidProfilePictureException
 import com.eeseka.lynk.user.domain.model.ProfilePictureUploadCredentials
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
 import java.time.Instant
 import java.util.*
 
-@Service
-class SupabaseUserStorageService(
+@Component
+class SupabaseUserStorageClient(
     @param:Value("\${supabase.url}") private val supabaseUrl: String,
     private val supabaseRestClient: RestClient,
 ) {

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'You have been removed from a hangout')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        You are no longer on the list for <span th:text="${hangoutName}">Friday drinks</span>
+    </h1>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        The deadline to pay your share passed without payment, so
+        <strong th:text="${hostDisplayName}">Alex</strong> has taken you off this hangout, and your
+        place has been freed up for someone else.
+    </p>
+
+    <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        Nothing was charged to you.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Still want to go? Ask the host to invite you again - though if the bill has already been
+                    settled, there may no longer be a share available.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

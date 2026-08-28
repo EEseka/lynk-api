@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{emails/layout :: layout(~{::content}, 'Your refund is on its way')}">
+<body>
+<div th:fragment="content">
+    <h1 class="heading"
+        style="margin: 0 0 22px; font-family: 'Space Grotesk', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+               font-size: 30px; line-height: 1.25; font-weight: 700; letter-spacing: -0.6px; color: #1b1b24;">
+        You are getting <span th:text="${amount}">&#8358;5,000.00</span> back
+    </h1>
+
+    <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        We have sent back what you paid for
+        <strong th:text="${hangoutName}">Friday drinks</strong>.
+    </p>
+
+    <p class="body-text" style="margin: 0 0 24px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
+        It goes back to the card or account you paid with. Most banks take a few working days to show it.
+    </p>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 16px 22px;">
+                <p class="note-text"
+                   style="margin: 0 0 4px; font-size: 12px; line-height: 1.5; letter-spacing: 0.6px;
+                          text-transform: uppercase; color: #777587;">
+                    Reference
+                </p>
+                <p class="mono" th:text="${reference}"
+                   style="margin: 0; font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+                          font-size: 15px; line-height: 1.5; letter-spacing: -0.2px; color: #1b1b24;">
+                    lynk_a1b2c3d4e5
+                </p>
+            </td>
+        </tr>
+    </table>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="margin: 32px 0 0;">
+        <tr>
+            <td class="note"
+                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                       padding: 20px 22px;">
+                <p class="note-text"
+                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                    Not arrived after five working days? Reply to this email or write to
+                    <a href="mailto:support@lynk.com.ng" class="link"
+                       style="color: #4d41df; text-decoration: underline;">support@lynk.com.ng</a>
+                    with the reference above.
+                </p>
+            </td>
+        </tr>
+    </table>
+</div>
+</body>
+</html>

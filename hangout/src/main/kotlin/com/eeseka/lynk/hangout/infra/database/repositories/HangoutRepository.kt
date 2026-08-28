@@ -74,6 +74,9 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     @Query("SELECT h.hostId FROM HangoutEntity h WHERE h.id = :hangoutId")
     fun findHostIdById(hangoutId: HangoutId): UserId?
 
+    @Query("SELECT h.name FROM HangoutEntity h WHERE h.id = :hangoutId")
+    fun findNameById(hangoutId: HangoutId): String?
+
     // Drives the payout sweep: everything collected and waiting to be sent to a host.
     @Query("""
         SELECT h.id
@@ -117,6 +120,19 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         paymentState: PaymentState,
         now: Instant,
         excludedStatus: HangoutStatus
+    ): List<HangoutEntity>
+
+    @Query("""
+        SELECT h
+        FROM HangoutEntity h
+        LEFT JOIN FETCH h.participants p
+        LEFT JOIN FETCH p.hangoutUser
+        WHERE h.status IN :statuses
+        AND h.scheduledAt <= :now
+    """)
+    fun findByStatusInAndScheduledAtBefore(
+        statuses: Collection<HangoutStatus>,
+        now: Instant
     ): List<HangoutEntity>
 
     // Scheduled job: "Flip all hangouts whose start time has arrived from waiting to ongoing"

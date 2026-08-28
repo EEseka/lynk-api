@@ -1,7 +1,9 @@
 package com.eeseka.lynk.common.infra.message_queue
 
 import com.eeseka.lynk.common.domain.events.LynkEvent
+import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.events.hangout.HangoutEventConstants
+import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.domain.events.user.UserEventConstants
 import org.springframework.amqp.core.Binding
 import org.springframework.amqp.core.BindingBuilder
@@ -37,7 +39,11 @@ class RabbitMqConfig {
             .activateDefaultTyping(polymorphicTypeValidator, DefaultTyping.NON_FINAL)
             .build()
 
-        return JacksonJsonMessageConverter(objectMapper).apply {
+        return JacksonJsonMessageConverter(
+            objectMapper,
+            UserEvent::class.java.packageName,
+            HangoutEvent::class.java.packageName
+        ).apply {
             typePrecedence = JacksonJavaTypeMapper.TypePrecedence.TYPE_ID
         }
     }

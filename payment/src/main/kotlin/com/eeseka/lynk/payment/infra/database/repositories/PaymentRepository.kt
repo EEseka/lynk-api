@@ -24,6 +24,19 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
         refundStatus: RefundStatus
     ): List<PaymentEntity>
 
+    @Query("""
+        SELECT COALESCE(SUM(p.netAmountKobo), 0)
+        FROM PaymentEntity p
+        WHERE p.hangoutId = :hangoutId
+        AND p.status = :status
+        AND p.refundStatus = :refundStatus
+    """)
+    fun sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+        hangoutId: HangoutId,
+        status: PaymentStatus,
+        refundStatus: RefundStatus
+    ): Long
+
     // One person's money on one hangout, for when only they are leaving.
     fun findByHangoutIdAndUserIdAndStatusAndRefundStatus(
         hangoutId: HangoutId,

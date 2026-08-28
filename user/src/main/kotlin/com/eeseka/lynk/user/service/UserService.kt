@@ -12,7 +12,7 @@ import com.eeseka.lynk.user.domain.model.ProfilePictureUploadCredentials
 import com.eeseka.lynk.user.domain.model.User
 import com.eeseka.lynk.user.infra.database.mappers.toUser
 import com.eeseka.lynk.user.infra.database.repositories.UserRepository
-import com.eeseka.lynk.user.infra.storage.SupabaseUserStorageService
+import com.eeseka.lynk.user.infra.storage.SupabaseUserStorageClient
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
@@ -22,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class UserService(
     private val userRepository: UserRepository,
-    private val supabaseUserStorageService: SupabaseUserStorageService,
+    private val supabaseUserStorageClient: SupabaseUserStorageClient,
     @param:Value("\${supabase.url}") private val supabaseUrl: String,
     private val eventPublisher: EventPublisher,
     private val applicationEventPublisher: ApplicationEventPublisher,
@@ -39,7 +39,7 @@ class UserService(
         userId: UserId,
         mimeType: String
     ): ProfilePictureUploadCredentials {
-        return supabaseUserStorageService.generateSignedUploadUrl(userId = userId, mimeType = mimeType)
+        return supabaseUserStorageClient.generateSignedUploadUrl(userId = userId, mimeType = mimeType)
     }
 
     fun getUser(userId: UserId): User {
