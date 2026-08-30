@@ -30,7 +30,10 @@ class SecurityConfig {
                         "/api/auth/guest",
                         "/api/auth/refresh",
                         "/api/auth/apiKey",
-                        "/api/payments/webhook"
+                        "/api/payments/webhook",
+                        "/actuator/health",
+                        "/actuator/health/liveness",
+                        "/actuator/health/readiness"
                     )
                     .permitAll()
                     .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)

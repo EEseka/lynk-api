@@ -16,6 +16,10 @@ spring:
       connect-timeout: 5000ms
       timeout: 2000ms
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
   datasource:
     password: ${POSTGRES_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -118,5 +122,19 @@ bank-logo:
 firebase:
   credentials-path: "classpath:firebase-credentials/lynk-firebase-adminsdk.json"
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+  health:
+    mail:
+      enabled: false
+
 server:
-  port: 8080
+  port: ${PORT:8080}

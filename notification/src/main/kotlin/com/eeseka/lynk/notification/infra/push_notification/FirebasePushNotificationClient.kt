@@ -13,11 +13,14 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.ResourceLoader
 import org.springframework.stereotype.Component
+import java.io.InputStream
 
 @Component
 class FirebasePushNotificationClient(
     @param:Value("\${firebase.credentials-path}")
     private val credentialsPath: String,
+    @param:Value("\${firebase.credentials-json:}")
+    private val credentialsJson: String,
     private val resourceLoader: ResourceLoader
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -30,10 +33,8 @@ class FirebasePushNotificationClient(
         }
 
         try {
-            val serviceAccount = resourceLoader.getResource(credentialsPath)
-
             val options = FirebaseOptions.builder()
-                .setCredentials(GoogleCredentials.fromStream(serviceAccount.inputStream))
+                .setCredentials(GoogleCredentials.fromStream(readServiceAccount()))
                 .build()
 
             FirebaseApp.initializeApp(options)
@@ -104,6 +105,21 @@ class FirebasePushNotificationClient(
             .getInstance()
             .sendEach(messages)
             .toSendResult(notification.recipients)
+    }
+
+    /**
+     * The service account key is in gitignore, so it is on this machine but never in the repository
+     * and never in a built image. Deployed environments pass the same JSON as an environment
+     * variable instead.
+     */
+    private fun readServiceAccount(): InputStream {
+        if (credentialsJson.isNotBlank()) {
+            logger.info("Loading Firebase credentials from the environment")
+            return credentialsJson.byteInputStream()
+        }
+
+        logger.info("Loading Firebase credentials from {}", credentialsPath)
+        return resourceLoader.getResource(credentialsPath).inputStream
     }
 
     private fun BatchResponse.toSendResult(

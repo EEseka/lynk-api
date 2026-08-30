@@ -23,6 +23,7 @@ spring-boot-starter-mail = { module = "org.springframework.boot:spring-boot-star
 spring-boot-starter-thymeleaf = { module = "org.springframework.boot:spring-boot-starter-thymeleaf", version.ref = "springBoot" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator", version.ref = "springBoot" }
 spring-boot-starter-websocket = { module = "org.springframework.boot:spring-boot-starter-websocket", version.ref = "springBoot" }
+spring-boot-flyway = { module = "org.springframework.boot:spring-boot-flyway", version.ref = "springBoot" }
 
 # JWT
 jwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jwt" }
@@ -42,6 +43,7 @@ kotlinx-coroutines-reactor = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 
 # Database
 postgresql = { module = "org.postgresql:postgresql" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
 
 # Firebase
 firebase-admin-sdk = { module = "com.google.firebase:firebase-admin", version.ref = "firebase" }
