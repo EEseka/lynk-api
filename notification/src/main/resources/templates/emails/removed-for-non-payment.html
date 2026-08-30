@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'You have been removed from a hangout')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'You have been removed from a hangout',
+                    'The deadline to pay your share passed. Nothing was charged to you.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"

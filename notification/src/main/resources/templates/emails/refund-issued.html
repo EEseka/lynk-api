@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'Your refund is on its way')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'Your refund is on its way',
+                    ${amount} + ' is heading back to the card or account you paid with.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"

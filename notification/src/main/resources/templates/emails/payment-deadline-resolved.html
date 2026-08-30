@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'The payment deadline has passed')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'The payment deadline has passed',
+                    ${needsDecision}
+                      ? 'Give everyone more time, or go ahead with whoever has paid.'
+                      : 'Everyone paid. The money is on its way to your bank account.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"
@@ -38,28 +41,28 @@
                 </td>
             </tr>
         </table>
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="margin: 32px 0 0;">
+            <tr>
+                <td class="note"
+                    style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
+                           padding: 20px 22px;">
+                    <p class="note-text"
+                       style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
+                        Anyone taken off for not paying is told why and is never charged.
+                    </p>
+                </td>
+            </tr>
+        </table>
     </div>
 
     <div th:unless="${needsDecision}">
         <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
-            Everyone has paid. Nothing more for you to do - the money will be sent to your bank account
-            after the hangout.
+            Everyone has paid. Nothing more for you to do - the money is on its way to your bank
+            account now, and you will get an email once it has been sent.
         </p>
     </div>
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-           style="margin: 32px 0 0;">
-        <tr>
-            <td class="note"
-                style="background-color: #f6f2ff; border: 1px solid #e4e0f4; border-radius: 12px;
-                       padding: 20px 22px;">
-                <p class="note-text"
-                   style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
-                    Anyone taken off for not paying is told why and is never charged.
-                </p>
-            </td>
-        </tr>
-    </table>
 </div>
 </body>
 </html>

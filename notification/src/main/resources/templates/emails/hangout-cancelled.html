@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'A hangout you were going to has been called off')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'A hangout you were going to has been called off',
+                    'If you had already paid your share, your refund is on its way back to you.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"
@@ -10,7 +11,7 @@
     </h1>
 
     <p class="body-text" style="margin: 0 0 18px; font-size: 16px; line-height: 1.7; color: #1b1b24;">
-        <strong th:text="${hostDisplayName}">Alex</strong> has canceled this hangout.
+        <strong th:text="${hostDisplayName}">Alex</strong> has cancelled this hangout.
     </p>
 
     <p class="body-text" style="margin: 0; font-size: 16px; line-height: 1.7; color: #1b1b24;">
