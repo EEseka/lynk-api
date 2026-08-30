@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'Pick your Lynk username')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'Pick your Lynk username',
+                    'One step left before anyone can invite you to a hangout. Takes about a minute.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"

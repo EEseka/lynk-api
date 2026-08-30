@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:fragment="layout(content, title)">
+      th:fragment="layout(content, title, preheader)">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -40,9 +40,10 @@
         }
 
         /* The page and the card share one colour so the email sits flush against the
-           client's own background - pure white in light, pure black in dark, matching
-           backgroundLight/backgroundDark on the client. Structure comes from the rules
-           and the footer band, never from a card edge. */
+           client's own background - pure white in light (surfaceContainerLowestLight,
+           rather than the app's slightly tinted backgroundLight, because inboxes render
+           on white), pure black in dark to match backgroundDark. Structure comes from
+           the rules and the footer band, never from a card edge. */
         @media (prefers-color-scheme: dark) {
             .email-body, .email-container, .header-cell, .content-cell, .footer-band {
                 background-color: #000000 !important; /* backgroundDark */
@@ -98,10 +99,6 @@
             .heading {
                 font-size: 26px !important;
             }
-
-            .wordmark {
-                font-size: 28px !important;
-            }
         }
     </style>
 </head>
@@ -112,7 +109,14 @@
 <div class="preheader"
      style="display: none; max-height: 0; overflow: hidden; mso-hide: all;
             font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0;"
-     th:text="${title}">Email from Lynk
+     th:text="${preheader}">Email from Lynk
+</div>
+
+<div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"

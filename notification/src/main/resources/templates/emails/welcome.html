@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
-      th:replace="~{emails/layout :: layout(~{::content}, 'Welcome to Lynk')}">
+      th:replace="~{emails/layout :: layout(~{::content}, 'Welcome to Lynk',
+                    'Your username is live, so your friends can find you and invite you along.')}">
 <body>
 <div th:fragment="content">
     <h1 class="heading"
@@ -27,8 +28,8 @@
                        padding: 20px 22px;">
                 <p class="note-text"
                    style="margin: 0; font-size: 14px; line-height: 1.65; color: #464555;">
-                    We will email you about the things that involve money - a hangout being called off, a refund,
-                    a payout. Everything else arrives as a notification in the app.
+                    We keep email for the things worth leaving the app for - a hangout being called off, a
+                    refund, a payout. The day to day arrives as a notification instead.
                 </p>
             </td>
         </tr>
