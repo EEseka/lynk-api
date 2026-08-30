@@ -1,0 +1,13 @@
+.git
+.github
+.gradle
+.idea
+.kotlin
+build
+*/build
+.env
+*.env
+.DS_Store
+
+# Secrets reach a running container as environment variables, never as files in the image.
+app/src/main/resources/firebase-credentials

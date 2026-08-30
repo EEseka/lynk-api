@@ -17,6 +17,12 @@ class ApiKeyAuthFilter(
     companion object Companion {
         private const val API_KEY_HEADER = "X-API-Key"
         private const val AUTH_API_KEY_PATH = "/api/auth/apiKey"
+
+        private val HEALTH_PATHS = setOf(
+            "/actuator/health",
+            "/actuator/health/liveness",
+            "/actuator/health/readiness"
+        )
     }
 
     override fun doFilterInternal(
@@ -53,8 +59,12 @@ class ApiKeyAuthFilter(
     }
 
     private fun shouldSkipAuthentication(request: HttpServletRequest): Boolean {
-        return request.method == HttpMethod.POST.name() &&
+        val isApiKeyRequest = request.method == HttpMethod.POST.name() &&
                 request.servletPath == AUTH_API_KEY_PATH
+        val isHealthCheck = request.method == HttpMethod.GET.name() &&
+                request.servletPath in HEALTH_PATHS
+
+        return isApiKeyRequest || isHealthCheck
     }
 
     private fun sendUnauthorizedResponse(response: HttpServletResponse, code: String, message: String) {
