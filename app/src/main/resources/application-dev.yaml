@@ -29,9 +29,6 @@ lynk:
   web-socket:
     allowed-origin: "http://localhost:8080"
 
-nginx:
-  require-proxy: false
-
 logging:
   level:
     com.eeseka.lynk: DEBUG

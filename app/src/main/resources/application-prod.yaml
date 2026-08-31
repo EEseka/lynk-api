@@ -1,7 +1,7 @@
 spring:
   datasource:
-    url: jdbc:postgresql://db.nprfqkurgivwqjnzkemp.supabase.co:5432/postgres?sslmode=require
-    username: postgres
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
 
   jpa:
     hibernate:
@@ -25,8 +25,14 @@ lynk:
   web-socket:
     allowed-origin: "https://lynk.com.ng"
 
-nginx:
-  require-proxy: false
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+server:
+  forward-headers-strategy: framework
 
 logging:
   level:
