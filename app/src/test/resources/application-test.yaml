@@ -1,15 +1,7 @@
 spring:
-  datasource:
-    url: jdbc:h2:mem:lynktestdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: password
   jpa:
     hibernate:
-      ddl-auto: create-drop
-
-  flyway:
-    enabled: false
+      ddl-auto: validate
 
   data:
     redis:
@@ -21,6 +13,9 @@ spring:
     host: localhost
     username: dummy_user
     password: dummy_password
+    listener:
+      simple:
+        auto-startup: false
 
   mail:
     host: localhost
