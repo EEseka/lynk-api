@@ -18,6 +18,7 @@ class ApiKeyAuthFilter(
         private const val API_KEY_HEADER = "X-API-Key"
         private const val AUTH_API_KEY_PATH = "/api/auth/apiKey"
 
+        private const val PAYMENT_WEBHOOK_PATH = "/api/payments/webhook"
         private val HEALTH_PATHS = setOf(
             "/actuator/health",
             "/actuator/health/liveness",
@@ -60,11 +61,13 @@ class ApiKeyAuthFilter(
 
     private fun shouldSkipAuthentication(request: HttpServletRequest): Boolean {
         val isApiKeyRequest = request.method == HttpMethod.POST.name() &&
-                request.servletPath == AUTH_API_KEY_PATH
+                request.requestURI == AUTH_API_KEY_PATH
         val isHealthCheck = request.method == HttpMethod.GET.name() &&
-                request.servletPath in HEALTH_PATHS
+                request.requestURI in HEALTH_PATHS
+        val isPaymentWebhook = request.method == HttpMethod.POST.name() &&
+                request.requestURI == PAYMENT_WEBHOOK_PATH
 
-        return isApiKeyRequest || isHealthCheck
+        return isApiKeyRequest || isHealthCheck || isPaymentWebhook
     }
 
     private fun sendUnauthorizedResponse(response: HttpServletResponse, code: String, message: String) {

@@ -817,7 +817,12 @@ class HangoutService(
     @Transactional
     fun cleanupSoloUnpaidHangouts() {
         val cutoff = Instant.now().minus(30, ChronoUnit.DAYS)
-        hangoutRepository.deleteSoloUnpaidHangoutsScheduledBefore(cutoff)
+        val abandoned = hangoutRepository.findSoloUnpaidHangoutsScheduledBefore(cutoff)
+        if (abandoned.isEmpty()) return
+
+        hangoutRepository.deleteAll(abandoned)
+
+        logger.info("Deleted {} hangouts nobody ever joined", abandoned.size)
     }
 
     private fun assertPaymentsCanBeEnabled(
