@@ -21,4 +21,7 @@ dependencies {
     implementation(libs.spring.boot.starter.data.redis)
 
     runtimeOnly(libs.postgresql)
+
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.kotlin.test.junit5)
 }

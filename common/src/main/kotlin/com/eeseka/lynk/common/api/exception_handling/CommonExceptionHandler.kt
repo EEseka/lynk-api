@@ -3,6 +3,7 @@ package com.eeseka.lynk.common.api.exception_handling
 import com.eeseka.lynk.common.domain.exception.GuestActionNotAllowedException
 import com.eeseka.lynk.common.domain.exception.RateLimitException
 import com.eeseka.lynk.common.domain.exception.UnauthorizedException
+import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -41,6 +42,26 @@ class CommonExceptionHandler {
     ): ResponseEntity<Map<String, Any>> {
         val errors = e.bindingResult.allErrors.map {
             it.defaultMessage ?: "Invalid value"
+        }
+        return ResponseEntity
+            .status(HttpStatus.BAD_REQUEST)
+            .body(
+                mapOf(
+                    "code" to "VALIDATION_ERROR",
+                    "errors" to errors
+                )
+            )
+    }
+
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun onRequestParamConstraintViolated(
+        e: ConstraintViolationException
+    ): ResponseEntity<Map<String, Any>> {
+        val errors = e.constraintViolations.map { violation ->
+            val parameterName = violation.propertyPath.last().name
+
+            if (parameterName.matches(Regex("arg\\d+"))) violation.message
+            else "$parameterName ${violation.message}"
         }
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)

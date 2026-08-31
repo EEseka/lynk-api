@@ -23,6 +23,10 @@ allprojects {
                 languageVersion.set(JavaLanguageVersion.of(21))
             }
         }
+
+        dependencies {
+            add("implementation", platform(libs.spring.boot.dependencies))
+        }
     }
 
     tasks.withType<Test> {

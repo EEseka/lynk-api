@@ -78,6 +78,7 @@ class JwtService(
         val expiryDate = Date(now.time + expiry)
         return Jwts.builder()
             .subject(userId.toString())
+            .id(UUID.randomUUID().toString())
             .claim("type", type)
             .apply { isGuest?.let { claim("guest", it) } }
             .issuedAt(now)

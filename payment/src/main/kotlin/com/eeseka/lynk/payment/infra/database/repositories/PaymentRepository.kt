@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
@@ -99,7 +100,7 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
      * [expectedStatus] is NONE for a first attempt and FAILED for a retry, so a retry can only pick up
      * a refund that is genuinely stuck rather than one already on its way.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         UPDATE PaymentEntity p
@@ -112,6 +113,20 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
         newStatus: RefundStatus,
         expectedStatus: RefundStatus
     ): Int
+
+    /**
+     * Records that the provider refused to send the money back. The amount is cleared along with it,
+     * because nothing went anywhere.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying
+    @Query("""
+        UPDATE PaymentEntity p
+        SET p.refundStatus = RefundStatus.FAILED,
+            p.refundedAmountKobo = null
+        WHERE p.id = :paymentId
+    """)
+    fun failRefund(paymentId: PaymentId): Int
 
     // Account deletion guard: a charge still in flight, or a refund this user is still owed.
     fun existsByUserIdAndStatus(userId: UserId, status: PaymentStatus): Boolean

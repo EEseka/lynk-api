@@ -150,14 +150,13 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     )
 
     // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
-    @Modifying
     @Query("""
-        DELETE FROM HangoutEntity h
+        SELECT h FROM HangoutEntity h
         WHERE h.participantCount = 1
         AND h.scheduledAt < :cutoff
         AND h.payment.state IS NULL
     """)
-    fun deleteSoloUnpaidHangoutsScheduledBefore(cutoff: Instant)
+    fun findSoloUnpaidHangoutsScheduledBefore(cutoff: Instant): List<HangoutEntity>
 
     @Query("""
         SELECT COUNT(h)

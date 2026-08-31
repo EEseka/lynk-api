@@ -169,13 +169,14 @@ class RefundService(
     }
 
     private fun refund(payment: PaymentEntity, expectedStatus: RefundStatus = RefundStatus.NONE) {
-        val started = paymentRepository.transitionRefundStatus(
+        // One row changed means this call is the one that claimed the refund; zero means somebody else claimed it first and is already sending the money back.
+        val claimed = paymentRepository.transitionRefundStatus(
             paymentId = payment.id!!,
             newStatus = RefundStatus.REQUESTED,
             expectedStatus = expectedStatus
         ) == 1
 
-        if (!started) {
+        if (!claimed) {
             logger.info("A refund for {} is already in flight, leaving it alone", payment.reference)
             return
         }
@@ -197,14 +198,7 @@ class RefundService(
     }
 
     private fun markRefundFailed(payment: PaymentEntity) {
-        paymentRepository.findByReference(payment.reference)?.let { freshPayment ->
-            paymentRepository.save(
-                freshPayment.apply {
-                    refundStatus = RefundStatus.FAILED
-                    refundedAmountKobo = null
-                }
-            )
-        }
+        paymentRepository.failRefund(payment.id!!)
     }
 
     /**
