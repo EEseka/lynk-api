@@ -39,7 +39,7 @@ class TestAccounts(
      *
      * The profile is completed by default because that is the point at which the other modules are
      * told this person exists — without it, they cannot host or be invited to anything. Pass
-     * `withProfile = false` for a test about that gap.
+     * `withProfileCompletion = false` for a test about that gap.
      */
     fun signIn(
         email: String = "ada@lynk.test",
