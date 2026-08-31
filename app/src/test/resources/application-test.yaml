@@ -44,6 +44,7 @@ lynk:
     allowed-origin: "http://localhost:8080"
 
 supabase:
+  url: "https://dummy-project.supabase.co"
   service-key: dummy-supabase-key
 
 places:

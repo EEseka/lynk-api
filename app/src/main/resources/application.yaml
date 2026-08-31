@@ -97,7 +97,6 @@ lynk:
     from: noreply@lynk.com.ng
 
 supabase:
-  url: "https://nprfqkurgivwqjnzkemp.supabase.co"
   service-key: ${SUPABASE_SERVICE_KEY}
 
 places:
