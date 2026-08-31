@@ -15,6 +15,9 @@ spring:
     host: smtp-relay.brevo.com
     username: a130b3001@smtp-brevo.com
 
+supabase:
+  url: "https://nprfqkurgivwqjnzkemp.supabase.co"
+
 jwt:
   expiration-minutes: 1000
 
@@ -28,9 +31,6 @@ lynk:
       apply-limit: false
   web-socket:
     allowed-origin: "http://localhost:8080"
-
-nginx:
-  require-proxy: false
 
 logging:
   level:

@@ -24,6 +24,8 @@ class ApiKeyAuthFilter(
             "/actuator/health/liveness",
             "/actuator/health/readiness"
         )
+
+        private val DOCS_PATH_PREFIXES = listOf("/swagger-ui", "/v3/api-docs")
     }
 
     override fun doFilterInternal(
@@ -66,8 +68,10 @@ class ApiKeyAuthFilter(
                 request.requestURI in HEALTH_PATHS
         val isPaymentWebhook = request.method == HttpMethod.POST.name() &&
                 request.requestURI == PAYMENT_WEBHOOK_PATH
+        val isApiDocs = request.method == HttpMethod.GET.name() &&
+                DOCS_PATH_PREFIXES.any { request.requestURI.startsWith(it) }
 
-        return isApiKeyRequest || isHealthCheck || isPaymentWebhook
+        return isApiKeyRequest || isHealthCheck || isPaymentWebhook || isApiDocs
     }
 
     private fun sendUnauthorizedResponse(response: HttpServletResponse, code: String, message: String) {

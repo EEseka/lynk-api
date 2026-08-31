@@ -9,6 +9,8 @@ coroutines = "1.11.0"
 
 googleApiClient = "2.9.0"
 
+springdoc = "3.0.3"
+
 mockitoKotlin = "6.3.0"
 
 [libraries]
@@ -37,6 +39,9 @@ jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" 
 
 # Google Auth
 google-api-client = { module = "com.google.api-client:google-api-client", version.ref = "googleApiClient" }
+
+# API Documentation
+springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 
 # Kotlin
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }

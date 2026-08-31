@@ -33,7 +33,10 @@ class SecurityConfig {
                         "/api/payments/webhook",
                         "/actuator/health",
                         "/actuator/health/liveness",
-                        "/actuator/health/readiness"
+                        "/actuator/health/readiness",
+                        "/swagger-ui.html",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**"
                     )
                     .permitAll()
                     .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)

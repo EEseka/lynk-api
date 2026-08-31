@@ -8,7 +8,9 @@ import com.eeseka.lynk.user.api.dto.GoogleLoginRequest
 import com.eeseka.lynk.user.api.dto.RefreshRequest
 import com.eeseka.lynk.user.api.mappers.toAuthenticatedUserDto
 import com.eeseka.lynk.user.service.AuthService
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.*
 import java.util.concurrent.TimeUnit
 
@@ -17,6 +19,7 @@ import java.util.concurrent.TimeUnit
 class AuthController(
     private val authService: AuthService
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     @PostMapping("/google")
     @IpRateLimit(
@@ -36,8 +39,12 @@ class AuthController(
         duration = 1L,
         unit = TimeUnit.HOURS
     )
-    fun guestLogin(): AuthenticatedUserDto {
-        return authService.guestLogin().toAuthenticatedUserDto()
+    fun guestLogin(request: HttpServletRequest): AuthenticatedUserDto {
+        val user = authService.guestLogin()
+        // The cap above is a guess until there are real numbers. Counting distinct users per ipaddress
+        // per hour is what settles it, and carriers put many subscribers behind one ipaddress.
+        logger.info("Guest {} signed in from {}", user.user.id, request.remoteAddr)
+        return user.toAuthenticatedUserDto()
     }
 
     @PostMapping("/refresh")
