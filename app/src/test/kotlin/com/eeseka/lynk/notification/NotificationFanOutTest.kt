@@ -13,8 +13,6 @@ import com.eeseka.lynk.notification.service.PushNotificationService
 import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.TestAccount
 import com.eeseka.lynk.support.authenticatedAs
-import jakarta.mail.Session
-import jakarta.mail.internet.MimeMessage
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
@@ -31,7 +29,6 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.Duration
 import java.time.Instant
-import java.util.Properties
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -64,11 +61,6 @@ class NotificationFanOutTest : IntegrationTest() {
         given(firebasePushNotificationClient.isValidToken(eq(DEVICE_TOKEN))).willReturn(true)
         given(firebasePushNotificationClient.sendNotification(any()))
             .willReturn(PushNotificationSendResult(emptyList(), emptyList(), emptyList()))
-        // The real sender builds its message from this; a mock would hand back null and the email
-        // would fail inside a listener that swallows everything. A fresh message per call, because
-        // one shared instance would be rewritten by every email and only remember the last.
-        given(javaMailSender.createMimeMessage())
-            .willAnswer { MimeMessage(Session.getInstance(Properties())) }
     }
 
     @Test
@@ -137,7 +129,7 @@ class NotificationFanOutTest : IntegrationTest() {
         assertEquals(NotificationType.HANGOUT_CANCELLED, notification.type)
 
         val cancellation = sentEmails().single { it.subject == "\"${hangout.name}\" has been cancelled" }
-        assertEquals("bola@lynk.test", cancellation.allRecipients.single().toString())
+        assertEquals("bola@lynk.test", cancellation.to)
     }
 
     @Test
@@ -223,12 +215,23 @@ class NotificationFanOutTest : IntegrationTest() {
      * Every email sent so far, not only the one a test is about: signing an account up already sends
      * two of its own, so a test looks for its message among them rather than expecting the only one.
      */
-    private fun sentEmails(): List<MimeMessage> {
-        val captor = argumentCaptor<MimeMessage>()
-        then(javaMailSender).should(atLeastOnce()).send(captor.capture())
+    private fun sentEmails(): List<SentEmail> {
+        val toCaptor = argumentCaptor<String>()
+        val subjectCaptor = argumentCaptor<String>()
+        val htmlCaptor = argumentCaptor<String>()
+        then(brevoEmailClient).should(atLeastOnce())
+            .sendHtmlEmail(toCaptor.capture(), subjectCaptor.capture(), htmlCaptor.capture())
 
-        return captor.allValues
+        return toCaptor.allValues.indices.map { i ->
+            SentEmail(
+                to = toCaptor.allValues[i],
+                subject = subjectCaptor.allValues[i],
+                body = htmlCaptor.allValues[i]
+            )
+        }
     }
+
+    private data class SentEmail(val to: String, val subject: String, val body: String)
 
     private fun createHangout(host: TestAccount): HangoutDto {
         val response = mockMvc.post("/api/hangouts") {

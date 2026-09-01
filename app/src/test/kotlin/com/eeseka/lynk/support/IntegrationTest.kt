@@ -1,5 +1,6 @@
 package com.eeseka.lynk.support
 
+import com.eeseka.lynk.notification.infra.email.BrevoEmailClient
 import com.eeseka.lynk.notification.infra.push_notification.FirebasePushNotificationClient
 import com.eeseka.lynk.payment.infra.bank_logo.BankLogoClient
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
@@ -13,7 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
-import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
@@ -87,7 +87,7 @@ abstract class IntegrationTest {
     protected lateinit var firebasePushNotificationClient: FirebasePushNotificationClient
 
     @MockitoBean
-    protected lateinit var javaMailSender: JavaMailSender
+    protected lateinit var brevoEmailClient: BrevoEmailClient
 
     /**
      * The broker is external too. Mocked rather than run, both so a test never waits on a connection

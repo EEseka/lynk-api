@@ -210,7 +210,7 @@ every secret arrives from the environment. Nothing sensitive is in the repositor
 | `JWT_SECRET_BASE64` `ADMIN_USERNAME` `ADMIN_PASSWORD`  | auth                             |
 | `GOOGLE_CLIENT_ID` `GOOGLE_PLACES_KEY`                 | Google Sign-In and Places        |
 | `PAYSTACK_SECRET_KEY`                                  | payments                         |
-| `MAIL_WITH_BREVO_PASSWORD`                             | email                            |
+| `BREVO_API_KEY`                                        | email, over Brevo's HTTP API     |
 | `FIREBASE_CREDENTIALS_JSON`                            | push, as JSON rather than a file |
 
 ## Deployment

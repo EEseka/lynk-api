@@ -41,16 +41,6 @@ spring:
         socketTimeout: 30
         connectTimeout: 10
 
-  mail:
-    port: 587
-    password: ${MAIL_WITH_BREVO_PASSWORD}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-
   rabbitmq:
     host: stingray-01.rmq.cloudamqp.com
     password: ${RABBITMQ_PASSWORD}
@@ -95,6 +85,13 @@ lynk:
 
   email:
     from: noreply@lynk.com.ng
+    from-name: Lynk
+    logo-url: "https://vuibgikrlpgizgwjyhlg.supabase.co/storage/v1/object/public/assets/lynk-logo.png"
+
+brevo:
+  url: "https://api.brevo.com/v3"
+  api-key: ${BREVO_API_KEY}
+  verify-on-startup: false
 
 supabase:
   service-key: ${SUPABASE_SERVICE_KEY}
@@ -124,9 +121,6 @@ management:
       show-details: never
       probes:
         enabled: true
-  health:
-    mail:
-      enabled: false
 
 server:
   port: ${PORT:8080}

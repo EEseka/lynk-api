@@ -2,17 +2,11 @@ package com.eeseka.lynk.notification
 
 import com.eeseka.lynk.notification.service.EmailService
 import com.eeseka.lynk.support.IntegrationTest
-import jakarta.mail.Multipart
-import jakarta.mail.Part
-import jakarta.mail.Session
-import jakarta.mail.internet.MimeMessage
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.BDDMockito.given
 import org.mockito.BDDMockito.then
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.springframework.beans.factory.annotation.Autowired
-import java.util.Properties
 import java.util.UUID
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -37,12 +31,6 @@ class EmailRenderTest : IntegrationTest() {
 
     @Autowired
     private lateinit var emailService: EmailService
-
-    @BeforeEach
-    fun stubMailSender() {
-        given(javaMailSender.createMimeMessage())
-            .willAnswer { MimeMessage(Session.getInstance(Properties())) }
-    }
 
     @Test
     fun `asks a new account to finish signing up`() {
@@ -195,18 +183,14 @@ class EmailRenderTest : IntegrationTest() {
     }
 
     private fun sentEmail(): SentEmail {
-        val captor = argumentCaptor<MimeMessage>()
-        then(javaMailSender).should().send(captor.capture())
+        val subjectCaptor = argumentCaptor<String>()
+        val htmlCaptor = argumentCaptor<String>()
+        then(brevoEmailClient).should().sendHtmlEmail(any(), subjectCaptor.capture(), htmlCaptor.capture())
 
-        val message = captor.lastValue
-        // The real sender does this on its way out; without it the parts still carry the headers they
-        // were born with, and none of them admits to being HTML.
-        message.saveChanges()
-
-        val body = message.htmlBody()
+        val body = htmlCaptor.lastValue
         assertRendered(body)
 
-        return SentEmail(subject = message.subject, body = body)
+        return SentEmail(subject = subjectCaptor.lastValue, body = body)
     }
 
     /**
@@ -220,23 +204,6 @@ class EmailRenderTest : IntegrationTest() {
             "the email still has Thymeleaf attributes in it"
         )
         assertFalse(body.contains("${'$'}{"), "the email still has an unresolved expression in it")
-    }
-
-    /**
-     * The HTML part of the message, dug out of the multipart the sender builds around the inline
-     * logo. Read through the mail API rather than off the wire, so the naira sign is a naira sign
-     * and not the quoted-printable escape it travels as.
-     */
-    private fun Part.htmlBody(): String {
-        val content = content
-
-        return when {
-            isMimeType("text/html") -> content as String
-            content is Multipart -> (0 until content.count)
-                .joinToString("") { content.getBodyPart(it).htmlBody() }
-
-            else -> ""
-        }
     }
 
     private data class SentEmail(val subject: String, val body: String)
