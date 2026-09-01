@@ -10,6 +10,7 @@ spring:
   mail:
     host: smtp-relay.brevo.com
     username: a130b3001@smtp-brevo.com
+    port: 2525
 
 supabase:
   url: ${SUPABASE_URL}
