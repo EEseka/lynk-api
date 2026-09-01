@@ -1,29 +1,25 @@
 package com.eeseka.lynk.notification.service
 
 import com.eeseka.lynk.common.domain.type.HangoutId
+import com.eeseka.lynk.notification.domain.exception.EmailNotSentException
+import com.eeseka.lynk.notification.infra.email.BrevoEmailClient
 import com.eeseka.lynk.notification.service.util.toNairaString
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.io.ClassPathResource
-import org.springframework.mail.MailException
-import org.springframework.mail.javamail.JavaMailSender
-import org.springframework.mail.javamail.MimeMessageHelper
 import org.springframework.stereotype.Service
 
 @Service
 class EmailService(
-    private val javaMailSender: JavaMailSender,
+    private val brevoEmailClient: BrevoEmailClient,
     private val templateService: EmailTemplateService,
-    @param:Value("\${lynk.email.from}")
-    private val emailFrom: String,
     @param:Value("\${lynk.email.url}")
-    private val baseUrl: String
+    private val baseUrl: String,
+    @param:Value("\${lynk.email.logo-url}")
+    private val logoUrl: String
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        private const val LOGO_CONTENT_ID = "lynkLogo"
-        private const val LOGO_PATH = "images/lynk-logo.png"
         /**
          * The custom scheme the client registers, matching the deep link already declared on
          * HangoutsGraph. It needs no domain verification, which a https link would, so it works
@@ -173,22 +169,13 @@ class EmailService(
     ) {
         val html = templateService.processTemplate(
             templateName = templateName,
-            variables = variables + ("baseUrl" to baseUrl)
+            variables = variables + ("baseUrl" to baseUrl) + ("logoUrl" to logoUrl)
         )
 
-        val message = javaMailSender.createMimeMessage()
-        MimeMessageHelper(message, true, "UTF-8").apply {
-            setFrom(emailFrom)
-            setTo(to)
-            setSubject(subject)
-            setText(html, true)
-            addInline(LOGO_CONTENT_ID, ClassPathResource(LOGO_PATH), "image/png")
-        }
-
         try {
-            javaMailSender.send(message)
+            brevoEmailClient.sendHtmlEmail(to = to, subject = subject, html = html)
             logger.info("Sent \"{}\" email", subject)
-        } catch (e: MailException) {
+        } catch (e: EmailNotSentException) {
             logger.error("Could not send \"$subject\" email", e)
         }
     }

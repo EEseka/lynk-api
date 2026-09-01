@@ -17,9 +17,8 @@ spring:
       simple:
         auto-startup: false
 
-  mail:
-    host: localhost
-    password: dummy_mail_password
+brevo:
+  api-key: dummy-brevo-key
 
 jwt:
   secret: YmFzZTY0LWVuY29kZWQtZHVtbXktc2VjcmV0LWtleS1mb3ItdGVzdGluZy1vbmx5
