@@ -155,8 +155,41 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
     }
 
     /**
-     * Once the money is on its way to the host's bank account there is nothing left to send back,
-     * so the sweep must not start a refund it cannot honour.
+     * Somebody who paid, was sent their money back, and was invited again owns two successful payments:
+     * the old refunded one and the live one. The refunded one is older, so reading the oldest success as
+     * the payment that bought the seat sends back the only money we are actually holding.
+     */
+    @Test
+    fun `keeps money for a guest who paid again after being refunded`() {
+        val arranged = arrangeHangoutWithGuest()
+        fixtures.payment(
+            hangoutId = arranged.hangout.id!!,
+            userId = arranged.guest.userId,
+            amountKobo = AMOUNT_KOBO,
+            status = PaymentStatus.SUCCESS,
+            refundStatus = RefundStatus.PROCESSED,
+            paidAt = Instant.now().minus(Duration.ofHours(6))
+        )
+        val current = fixtures.payment(
+            hangoutId = arranged.hangout.id!!,
+            userId = arranged.guest.userId,
+            amountKobo = AMOUNT_KOBO,
+            status = PaymentStatus.SUCCESS,
+            paidAt = Instant.now().minus(Duration.ofHours(1))
+        )
+
+        reconciliationService.recoverRefundsNeverRequested()
+
+        assertEquals(
+            RefundStatus.NONE,
+            paymentRepository.findByReference(current.reference)?.refundStatus,
+            "the sweep sent back the payment that bought the seat"
+        )
+    }
+
+    /**
+     * Once the money is on its way to the host's bank account, there is nothing left to send back,
+     * so the sweep must not start a refund it cannot honor.
      */
     @Test
     fun `does not chase a refund once the payout is on its way`() {
@@ -198,7 +231,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
 
     /**
      * The shape [com.eeseka.lynk.payment.service.PayoutService] leaves behind when Paystack refused
-     * the transfer but the second write never ran: paying out, with nothing to ask Paystack about.
+     * the transfer, but the second write never ran: paying out, with nothing to ask Paystack about.
      */
     @Test
     fun `releases a payout that was never actually sent`() {

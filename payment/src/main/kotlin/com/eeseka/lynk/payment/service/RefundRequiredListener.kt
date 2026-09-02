@@ -20,6 +20,9 @@ class RefundRequiredListener(
     fun onRefundRequired(event: RefundRequiredEvent) {
         logger.info("Sending payment {} back: {}", event.reference, event.reason)
 
-        refundService.refundPaymentByReference(event.reference)
+        refundService.refundPaymentByReference(
+            reference = event.reference,
+            alreadyClaimed = event.alreadyClaimed
+        )
     }
 }
