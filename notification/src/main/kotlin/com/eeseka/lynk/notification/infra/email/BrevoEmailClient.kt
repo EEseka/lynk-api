@@ -21,6 +21,10 @@ class BrevoEmailClient(
     private val emailFrom: String,
     @param:Value("\${lynk.email.from-name}")
     private val emailFromName: String,
+    @param:Value("\${lynk.email.reply-to}")
+    private val emailReplyTo: String,
+    @param:Value("\${lynk.email.reply-to-name}")
+    private val emailReplyToName: String,
     @param:Value("\${brevo.verify-on-startup}")
     private val verifyOnStartup: Boolean
 ) {
@@ -52,6 +56,7 @@ class BrevoEmailClient(
     fun sendHtmlEmail(to: String, subject: String, html: String) {
         val request = BrevoEmailRequest(
             sender = BrevoSender(name = emailFromName, email = emailFrom),
+            replyTo = BrevoSender(name = emailReplyToName, email = emailReplyTo),
             to = listOf(BrevoRecipient(email = to)),
             subject = subject,
             htmlContent = html

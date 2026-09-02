@@ -13,6 +13,7 @@ data class BrevoRecipient(
 
 data class BrevoEmailRequest(
     val sender: BrevoSender,
+    val replyTo: BrevoSender,
     val to: List<BrevoRecipient>,
     val subject: String,
     val htmlContent: String
