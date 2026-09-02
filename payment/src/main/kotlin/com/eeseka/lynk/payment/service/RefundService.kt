@@ -106,7 +106,12 @@ class RefundService(
         refund(payment)
     }
 
-    fun refundPaymentByReference(reference: String) {
+    /**
+     * [alreadyClaimed] is for a payment whose refund was claimed by the transaction that recorded it:
+     * [refund] would find the row already at REQUESTED, read that as somebody else's refund on its way,
+     * and send nothing at all.
+     */
+    fun refundPaymentByReference(reference: String, alreadyClaimed: Boolean = false) {
         val payment = paymentRepository.findByReference(reference)
         if (payment == null) {
             logger.warn("Asked to send back a payment for a reference we do not know: {}", reference)
@@ -118,6 +123,11 @@ class RefundService(
                 "Payment {} should never have been collected but hangout {} is past refunding, so it is stuck",
                 payment.reference, payment.hangoutId
             )
+            return
+        }
+
+        if (alreadyClaimed) {
+            sendRefund(payment)
             return
         }
 
@@ -181,6 +191,10 @@ class RefundService(
             return
         }
 
+        sendRefund(payment)
+    }
+
+    private fun sendRefund(payment: PaymentEntity) {
         try {
             paystackClient.refund(
                 transactionReference = payment.reference,

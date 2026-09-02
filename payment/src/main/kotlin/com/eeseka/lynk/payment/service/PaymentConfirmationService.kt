@@ -6,6 +6,7 @@ import com.eeseka.lynk.hangout.service.HangoutParticipantService
 import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.events.RefundRequiredEvent
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
+import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
 import org.slf4j.LoggerFactory
@@ -51,7 +52,30 @@ class PaymentConfirmationService(
         }
 
         val hasPaidAlready = locked.any {
-            it.reference != reference && it.status == PaymentStatus.SUCCESS
+            it.reference != reference && it.status == PaymentStatus.SUCCESS && it.refundStatus == RefundStatus.NONE
+        }
+
+        if (hasPaidAlready) {
+            logger.warn(
+                "Payment {} is a second payment by {} for hangout {}, sending it back",
+                payment.reference, payment.userId, payment.hangoutId
+            )
+
+            paymentRepository.save(
+                payment.apply {
+                    status = PaymentStatus.SUCCESS
+                    paidAt = Instant.now()
+                    refundStatus = RefundStatus.REQUESTED
+                    refundedAmountKobo = netAmountKobo
+                }
+            )
+
+            requestRefund(
+                paymentReference = payment.reference,
+                reason = "a second payment for a hangout they had already paid for",
+                alreadyClaimed = true
+            )
+            return
         }
 
         paymentRepository.save(
@@ -60,15 +84,6 @@ class PaymentConfirmationService(
                 paidAt = Instant.now()
             }
         )
-
-        if (hasPaidAlready) {
-            logger.warn(
-                "Payment {} is a second payment by {} for hangout {}, sending it back",
-                payment.reference, payment.userId, payment.hangoutId
-            )
-            requestRefund(payment.reference, "a second payment for a hangout they had already paid for")
-            return
-        }
 
         if (hangoutService.findHangoutStatus(payment.hangoutId) == HangoutStatus.CANCELLED) {
             logger.warn(
@@ -124,11 +139,12 @@ class PaymentConfirmationService(
         }
     }
 
-    private fun requestRefund(paymentReference: String, reason: String) {
+    private fun requestRefund(paymentReference: String, reason: String, alreadyClaimed: Boolean = false) {
         applicationEventPublisher.publishEvent(
             RefundRequiredEvent(
                 reference = paymentReference,
-                reason = reason
+                reason = reason,
+                alreadyClaimed = alreadyClaimed
             )
         )
     }

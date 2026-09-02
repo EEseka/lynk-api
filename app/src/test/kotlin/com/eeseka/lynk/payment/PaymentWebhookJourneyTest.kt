@@ -110,6 +110,38 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
     }
 
     /**
+     * Two devices, two checkouts, two real charges. One of them buys the seat and the other goes
+     * straight back — and the row it goes back on is a success the database will not hold twice for one
+     * person on one hangout, so the refund has to be claimed by the write that records the charge.
+     */
+    @Test
+    fun `sends back a second charge the same guest made from another device`() {
+        val (first, second) = arrangeTwoPendingPayments()
+
+        postWebhook(chargeSucceeded(first.reference, paidAmountKobo = AMOUNT_OWED_KOBO))
+            .andExpect { status { isOk() } }
+        postWebhook(chargeSucceeded(second.reference, paidAmountKobo = AMOUNT_OWED_KOBO))
+            .andExpect { status { isOk() } }
+
+        val keeper = paymentRepository.findByReference(first.reference)
+        assertNotNull(keeper)
+        assertEquals(PaymentStatus.SUCCESS, keeper.status)
+        assertEquals(RefundStatus.NONE, keeper.refundStatus, "the payment that bought the seat was sent back")
+
+        val duplicate = paymentRepository.findByReference(second.reference)
+        assertNotNull(duplicate)
+        assertEquals(PaymentStatus.SUCCESS, duplicate.status, "the second charge was real and has to say so")
+        assertEquals(RefundStatus.REQUESTED, duplicate.refundStatus, "the second charge was never sent back")
+
+        val participant = hangoutParticipantRepository.findByHangoutIdAndHangoutUserUserId(
+            hangoutId = keeper.hangoutId,
+            userId = keeper.userId
+        )
+        assertNotNull(participant)
+        assertTrue(participant.hasPaid, "the guest paid but is still marked unpaid")
+    }
+
+    /**
      * The charge went through, so the money is real, but it is short of what was owed. It buys no
      * seat, and we do not keep it.
      */
@@ -174,6 +206,28 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
             userId = guest.userId,
             amountKobo = AMOUNT_OWED_KOBO
         )
+    }
+
+    /** One guest with two checkouts in flight on the same hangout, as two devices would leave them. */
+    private fun arrangeTwoPendingPayments(): Pair<PaymentEntity, PaymentEntity> {
+        val host = fixtures.user(displayName = "Ada")
+        val guest = fixtures.user(displayName = "Bola")
+        val hangout = fixtures.hangout(host = host)
+        fixtures.participant(hangout = hangout, user = host)
+        fixtures.participant(hangout = hangout, user = guest)
+
+        val first = fixtures.payment(
+            hangoutId = hangout.id!!,
+            userId = guest.userId,
+            amountKobo = AMOUNT_OWED_KOBO
+        )
+        val second = fixtures.payment(
+            hangoutId = hangout.id!!,
+            userId = guest.userId,
+            amountKobo = AMOUNT_OWED_KOBO
+        )
+
+        return first to second
     }
 
     private fun postWebhook(body: String) = mockMvc.post(WEBHOOK_PATH) {

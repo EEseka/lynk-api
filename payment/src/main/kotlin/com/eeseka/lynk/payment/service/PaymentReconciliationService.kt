@@ -133,20 +133,6 @@ class PaymentReconciliationService(
         val paymentState = hangoutService.findPaymentState(payment.hangoutId)
         if (paymentState == PaymentState.PAYING_OUT || paymentState == PaymentState.PAID_OUT) return
 
-        val everySuccess = paymentRepository.findAllByHangoutIdAndUserIdAndStatus(
-            hangoutId = payment.hangoutId,
-            userId = payment.userId,
-            status = PaymentStatus.SUCCESS
-        )
-
-        // One of them bought the seat - the first one to land. The rest are owed back.
-        val keeper = everySuccess.minByOrNull { it.paidAt ?: it.createdAt }
-        if (everySuccess.size > 1 && payment.id != keeper?.id) {
-            logger.warn("Payment {} is a duplicate nobody sent back, doing it now", payment.reference)
-            refundService.refundPaymentByReference(payment.reference)
-            return
-        }
-
         if (hangoutService.findHangoutStatus(payment.hangoutId) == HangoutStatus.CANCELLED) {
             logger.warn("Payment {} is held for a cancelled hangout, sending it back", payment.reference)
             refundService.refundPaymentByReference(payment.reference)
