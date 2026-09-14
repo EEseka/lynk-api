@@ -7,6 +7,7 @@ import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
 import com.eeseka.lynk.hangout.domain.exception.HangoutParticipantNotFoundException
 import com.eeseka.lynk.hangout.domain.exception.HangoutUserNotFoundException
 import org.springframework.http.HttpStatus
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -54,5 +55,12 @@ class HangoutExceptionHandler {
     fun onHangoutIllegalArgument(e: HangoutIllegalArgumentException) = mapOf(
         "code" to "HANGOUT_ILLEGAL_ARGUMENT",
         "message" to e.message
+    )
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun onHangoutChangedConcurrently(e: ObjectOptimisticLockingFailureException) = mapOf(
+        "code" to "HANGOUT_CHANGED_CONCURRENTLY",
+        "message" to "This hangout was changed by someone else at the same time. Reload it and try again."
     )
 }

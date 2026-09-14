@@ -90,7 +90,7 @@ class TestHangouts(
         }.andExpect { status { isOk() } }
     }
 
-    private fun enablePayments(
+    fun enablePayments(
         host: TestAccount,
         hangoutId: HangoutId,
         totalCostKobo: Long,

@@ -17,6 +17,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.Index
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
+import jakarta.persistence.Version
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
 import java.time.Instant
@@ -79,5 +80,8 @@ class HangoutEntity(
     var createdAt: Instant = Instant.now(),
 
     @UpdateTimestamp
-    var updatedAt: Instant = Instant.now()
+    var updatedAt: Instant = Instant.now(),
+
+    @Version
+    var version: Long = 0
 )
