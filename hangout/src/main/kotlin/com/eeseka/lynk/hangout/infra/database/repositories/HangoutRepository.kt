@@ -7,9 +7,11 @@ import com.eeseka.lynk.hangout.domain.model.HangoutVibe
 import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
+import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import java.time.Instant
@@ -31,6 +33,11 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     """)
     // 1 is a dummy value; we don't want the data, just YES/NO does a row exist
     fun findHangoutById(id: HangoutId, userId: UserId): HangoutEntity?
+
+    // Answers: "Hold this hangout until my transaction ends, so nobody changes who's in it meanwhile"
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT h FROM HangoutEntity h WHERE h.id = :id")
+    fun lockById(id: HangoutId): HangoutEntity?
 
     // Answers: "What hangouts am I hosting?"
     @Query("""
@@ -136,10 +143,11 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     ): List<HangoutEntity>
 
     // Scheduled job: "Flip all hangouts whose start time has arrived from waiting to ongoing"
+    // Bulk updates skip the version check, so this one bumps the version by hand
     @Modifying
     @Query("""
         UPDATE HangoutEntity h
-        SET h.status = :ongoingStatus
+        SET h.status = :ongoingStatus, h.version = h.version + 1
         WHERE h.status IN :activeStatuses
         AND h.scheduledAt <= :now
     """)

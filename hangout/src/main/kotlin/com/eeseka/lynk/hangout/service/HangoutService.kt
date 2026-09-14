@@ -537,6 +537,8 @@ class HangoutService(
         totalCostKobo: Long,
         paymentDeadline: Instant
     ): Long {
+        hangoutRepository.lockById(hangoutId)
+
         val hangoutEntity = hangoutRepository.findHangoutById(hangoutId, hostId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 

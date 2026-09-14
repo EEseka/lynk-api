@@ -65,6 +65,8 @@ class HangoutParticipantService(
 
     @Transactional
     fun markParticipantAsPaid(hangoutId: HangoutId, userId: UserId) {
+        hangoutRepository.lockById(hangoutId)
+
         val participant = hangoutParticipantRepository
             .findByHangoutIdAndHangoutUserUserId(hangoutId = hangoutId, userId = userId)
             ?: throw HangoutParticipantNotFoundException(userId.toString())
@@ -104,6 +106,8 @@ class HangoutParticipantService(
         hangoutId: HangoutId,
         inviteeId: UserId
     ): HangoutParticipant {
+        hangoutRepository.lockById(hangoutId)
+
         val hangout = hangoutRepository.findHangoutById(hangoutId, hostId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
@@ -198,6 +202,8 @@ class HangoutParticipantService(
             throw HangoutIllegalArgumentException("RSVP must be ATTENDING or DECLINED.")
         }
 
+        hangoutRepository.lockById(hangoutId)
+
         val hangout = hangoutRepository.findHangoutById(hangoutId, userId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
@@ -254,6 +260,8 @@ class HangoutParticipantService(
         hangoutId: HangoutId,
         targetUserId: UserId
     ) {
+        hangoutRepository.lockById(hangoutId)
+
         val hangout = hangoutRepository.findHangoutById(hangoutId, hostId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
@@ -301,6 +309,8 @@ class HangoutParticipantService(
 
     @Transactional
     fun removeNonPayers(hostId: UserId, hangoutId: HangoutId) {
+        hangoutRepository.lockById(hangoutId)
+
         val hangout = hangoutRepository.findHangoutById(hangoutId, hostId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
@@ -351,6 +361,8 @@ class HangoutParticipantService(
         userId: UserId,
         hangoutId: HangoutId
     ) {
+        hangoutRepository.lockById(hangoutId)
+
         val hangout = hangoutRepository.findHangoutById(hangoutId, userId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
