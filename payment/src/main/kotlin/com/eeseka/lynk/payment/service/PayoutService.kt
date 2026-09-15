@@ -8,6 +8,7 @@ import com.eeseka.lynk.payment.domain.exception.PayoutRejectedException
 import com.eeseka.lynk.payment.domain.exception.PaystackUnavailableException
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
 import com.eeseka.lynk.payment.domain.model.RefundStatus
+import com.eeseka.lynk.payment.infra.database.entities.HangoutPayoutAccountEntity
 import com.eeseka.lynk.payment.infra.database.repositories.HangoutPayoutAccountRepository
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
@@ -45,10 +46,7 @@ class PayoutService(
                 if (succeeded) {
                     paidOutAt = Instant.now()
                     payoutFailureReason = null
-                    recipientCode = ""
-                    bankName = null
-                    accountNumberLast4 = ""
-                    accountHolderName = ""
+                    eraseBankDetails()
                 } else {
                     payoutFailureReason = reason?.take(255) ?: "The transfer did not go through"
                     this.transferReference = null
@@ -66,6 +64,16 @@ class PayoutService(
 
     fun retryPayout(hostId: UserId, hangoutId: HangoutId) {
         hangoutService.retryPayout(hostId = hostId, hangoutId = hangoutId)
+    }
+
+    // A canceled hangout is never paid out, so the host's bank details have nothing left to do.
+    @Transactional
+    fun erasePayoutAccount(hangoutId: HangoutId) {
+        val payoutAccount = hangoutPayoutAccountRepository.findByHangoutId(hangoutId) ?: return
+
+        hangoutPayoutAccountRepository.save(
+            payoutAccount.apply { eraseBankDetails() }
+        )
     }
 
     @Scheduled(fixedDelay = 60 * 60 * 1000)
@@ -116,6 +124,9 @@ class PayoutService(
                 succeeded = true,
                 reference = null,
                 amountKobo = 0
+            )
+            hangoutPayoutAccountRepository.save(
+                payoutAccount.apply { eraseBankDetails() }
             )
             return
         }
@@ -172,4 +183,12 @@ class PayoutService(
             status = PaymentStatus.SUCCESS,
             refundStatus = RefundStatus.NONE
         )
+
+    // Keeps the row and its payout reference, but nothing that identifies the host's bank account.
+    private fun HangoutPayoutAccountEntity.eraseBankDetails() {
+        recipientCode = ""
+        bankName = null
+        accountNumberLast4 = ""
+        accountHolderName = ""
+    }
 }
