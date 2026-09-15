@@ -296,7 +296,17 @@ class HangoutService(
             throw HangoutIllegalStateException("Cannot cancel a ${hangoutEntity.status.name.lowercase()} hangout.")
         }
 
-        hangoutRepository.save(hangoutEntity.apply { status = HangoutStatus.CANCELLED })
+        val paymentState = hangoutEntity.payment?.state
+        if (paymentState == PaymentState.PAYING_OUT || paymentState == PaymentState.PAID_OUT) {
+            throw HangoutIllegalStateException("The payout to the host has started, so this hangout can no longer be cancelled.")
+        }
+
+        hangoutRepository.save(
+            hangoutEntity.apply {
+                status = HangoutStatus.CANCELLED
+                payment?.state = PaymentState.CANCELLED
+            }
+        )
 
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
@@ -444,6 +454,10 @@ class HangoutService(
             ?: throw HangoutNotFoundException(hangoutId.toString())
         val payment = hangoutEntity.payment
             ?: throw HangoutIllegalStateException("Payments were never turned on for this hangout.")
+        // The sweep listed this hangout a moment ago; it may have been canceled since.
+        if (payment.state != PaymentState.READY_FOR_PAYOUT) {
+            throw HangoutIllegalStateException("This hangout's money is no longer waiting to be paid out.")
+        }
 
         hangoutRepository.save(
             hangoutEntity.apply { payment.state = PaymentState.PAYING_OUT }

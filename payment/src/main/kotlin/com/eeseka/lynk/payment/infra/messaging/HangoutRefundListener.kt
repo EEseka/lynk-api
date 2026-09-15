@@ -2,6 +2,7 @@ package com.eeseka.lynk.payment.infra.messaging
 
 import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.infra.message_queue.MessageQueues
+import com.eeseka.lynk.payment.service.PayoutService
 import com.eeseka.lynk.payment.service.RefundService
 import org.slf4j.LoggerFactory
 import org.springframework.amqp.rabbit.annotation.RabbitListener
@@ -9,7 +10,8 @@ import org.springframework.stereotype.Component
 
 @Component
 class HangoutRefundListener(
-    private val refundService: RefundService
+    private val refundService: RefundService,
+    private val payoutService: PayoutService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -24,6 +26,7 @@ class HangoutRefundListener(
 
     private fun onHangoutCancelled(event: HangoutEvent.HangoutCancelled) {
         logger.info("Hangout {} was cancelled, refunding everyone who paid", event.hangoutId)
+        payoutService.erasePayoutAccount(event.hangoutId)
         refundService.refundSettledPaymentsForHangout(event.hangoutId)
     }
 

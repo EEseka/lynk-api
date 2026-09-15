@@ -6,5 +6,6 @@ enum class PaymentState {
     READY_FOR_PAYOUT,
     PAYING_OUT,
     PAID_OUT,
-    PAYOUT_FAILED
+    PAYOUT_FAILED,
+    CANCELLED
 }
