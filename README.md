@@ -235,4 +235,9 @@ restart that couldn't have helped.
 
 ## Status
 
-Backend feature-complete and deployed. The KMP client is in progress.
+Backend feature-complete and deployed. The [KMP client](https://github.com/EEseka/Lynk) is out on Android: download the
+APK from [lynk.com.ng](https://lynk.com.ng). The App Store and Google Play releases come next.
+
+## License
+
+All rights reserved. The code is public to read, but not licensed for use. See [LICENSE](LICENSE).
