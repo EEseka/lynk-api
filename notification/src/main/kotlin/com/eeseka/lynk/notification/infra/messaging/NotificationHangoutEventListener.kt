@@ -113,9 +113,9 @@ class NotificationHangoutEventListener(
         val change = CHANGE_PRIORITY.firstOrNull { it in event.changes } ?: return
 
         val headline = when (change) {
-            HangoutChangeKind.PAYMENTS_ENABLED -> "${event.hostDisplayName} split the bill - your share is ready to pay"
+            HangoutChangeKind.PAYMENTS_ENABLED -> "${event.hostDisplayName} split the bill and your share is ready to pay"
             HangoutChangeKind.SPOT_CHOSEN -> "${event.hostDisplayName} locked in where you are going"
-            HangoutChangeKind.VOTING_REOPENED -> "${event.hostDisplayName} reopened voting - pick where you are going"
+            HangoutChangeKind.VOTING_REOPENED -> "${event.hostDisplayName} reopened voting on where you are going"
             HangoutChangeKind.SCHEDULE_CHANGED -> "${event.hostDisplayName} moved when this is happening"
             HangoutChangeKind.DETAILS_EDITED -> "${event.hostDisplayName} updated the details"
         }
@@ -143,7 +143,7 @@ class NotificationHangoutEventListener(
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
             actorDisplayName = event.hostDisplayName,
-            message = "That's a wrap - this hangout is done"
+            message = "That's a wrap on this hangout"
         )
     }
 
@@ -173,7 +173,7 @@ class NotificationHangoutEventListener(
             NotificationType.PAYMENT_DEADLINE_RESOLVED
         }
         val message = if (event.needsDecision) {
-            "The deadline passed with ${event.unpaidCount} unpaid - it is your call now"
+            "The deadline passed with ${event.unpaidCount} still unpaid, so it is your call now"
         } else {
             "Everyone has paid"
         }
@@ -208,7 +208,7 @@ class NotificationHangoutEventListener(
         val message = when {
             nothingToSend -> "Nothing was left to pay out for this one"
             event.succeeded -> "${event.amountKobo.toNairaString()} is on its way to your bank account"
-            else -> "The transfer failed - your money is safe, tap to retry"
+            else -> "The transfer failed but your money is safe, so tap to retry"
         }
 
         notify(
@@ -249,7 +249,7 @@ class NotificationHangoutEventListener(
             type = NotificationType.HANGOUT_STARTED,
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
-            message = "Kicking off now - see who's there"
+            message = "Kicking off now, come see who's there"
         )
     }
 
