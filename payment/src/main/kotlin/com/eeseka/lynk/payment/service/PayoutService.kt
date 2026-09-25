@@ -133,8 +133,10 @@ class PayoutService(
 
         val transferReference = payoutAccount.transferReference ?: "lynk_payout_${UUID.randomUUID()}"
 
-        hangoutPayoutAccountRepository.save(
-            payoutAccount.apply { this.transferReference = transferReference }
+        hangoutPayoutAccountRepository.updateTransferReferenceByHangoutId(
+            hangoutId = hangoutId,
+            transferReference = transferReference,
+            updatedAt = Instant.now()
         )
         hangoutService.markPayoutInFlight(hangoutId)
 
