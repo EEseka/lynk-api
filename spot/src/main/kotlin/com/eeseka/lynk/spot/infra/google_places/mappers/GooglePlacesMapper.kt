@@ -5,6 +5,9 @@ import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlace
 
+// Google's catch-all types
+private val GENERIC_TYPES = setOf("point_of_interest", "establishment", "food", "geocode", "political")
+
 fun GooglePlace.toSpot(): Spot {
     return Spot(
         id = id,
@@ -12,7 +15,7 @@ fun GooglePlace.toSpot(): Spot {
         description = editorialSummary?.text,
         photoUrls = photos?.map { it.name } ?: emptyList(),
         category = mapCategory(primaryType, types),
-        tags = types ?: emptyList(),
+        tags = types?.filterNot { it in GENERIC_TYPES } ?: emptyList(),
         priceLevel = mapPrice(priceLevel),
         rating = rating,
         reviewCount = userRatingCount ?: 0,
