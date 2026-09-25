@@ -126,7 +126,7 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
             p.refundedAmountKobo = null
         WHERE p.id = :paymentId
     """)
-    fun failRefund(paymentId: PaymentId): Int
+    fun failRefund(paymentId: PaymentId)
 
     // Account deletion guard: a charge still in flight, or a refund this user is still owed.
     fun existsByUserIdAndStatus(userId: UserId, status: PaymentStatus): Boolean
