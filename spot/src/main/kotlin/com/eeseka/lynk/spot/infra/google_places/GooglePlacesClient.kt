@@ -1,7 +1,7 @@
 package com.eeseka.lynk.spot.infra.google_places
 
-import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.PriceLevel
+import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlace
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlacesSearchResponse
@@ -27,37 +27,8 @@ class GooglePlacesClient(
         key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0"
     )
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
-        val body = mapOf(
-            "maxResultCount" to limit,
-            "includedTypes" to listOf(
-                "restaurant",
-                "cafe",
-                "bar",
-                "night_club",
-                "tourist_attraction",
-                "park",
-                "movie_theater",
-                "bowling_alley",
-                "amusement_center",
-                "art_gallery",
-                "shopping_mall"
-            ),
-            "locationRestriction" to mapOf(
-                "circle" to mapOf(
-                    "center" to mapOf("latitude" to latitude, "longitude" to longitude),
-                    "radius" to 5000.0
-                )
-            )
-        )
-
-        val response = googlePlacesRestClient.post()
-            .uri("/places:searchNearby")
-            .header("X-Goog-FieldMask", searchFieldMask.replace(",nextPageToken", ""))
-            .body(body)
-            .retrieve()
-            .body<GooglePlacesSearchResponse>()
-
-        return response?.places?.map { it.toSpot() } ?: emptyList()
+        return searchNearby(latitude, longitude, limit, radiusInMeters = 5000.0, rankByDistance = false)
+            .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = 50000.0, rankByDistance = true) }
     }
 
     fun searchSpots(
@@ -146,5 +117,49 @@ class GooglePlacesClient(
         } catch (_: HttpClientErrorException.NotFound) {
             null
         }
+    }
+
+    private fun searchNearby(
+        latitude: Double,
+        longitude: Double,
+        limit: Int,
+        radiusInMeters: Double,
+        rankByDistance: Boolean
+    ): List<Spot> {
+        val body = mutableMapOf(
+            "maxResultCount" to limit,
+            "includedTypes" to listOf(
+                "restaurant",
+                "cafe",
+                "bar",
+                "night_club",
+                "tourist_attraction",
+                "park",
+                "movie_theater",
+                "bowling_alley",
+                "amusement_center",
+                "art_gallery",
+                "shopping_mall"
+            ),
+            "locationRestriction" to mapOf(
+                "circle" to mapOf(
+                    "center" to mapOf("latitude" to latitude, "longitude" to longitude),
+                    "radius" to radiusInMeters
+                )
+            )
+        )
+
+        if (rankByDistance) {
+            body["rankPreference"] = "DISTANCE"
+        }
+
+        val response = googlePlacesRestClient.post()
+            .uri("/places:searchNearby")
+            .header("X-Goog-FieldMask", searchFieldMask.replace(",nextPageToken", ""))
+            .body(body)
+            .retrieve()
+            .body<GooglePlacesSearchResponse>()
+
+        return response?.places?.map { it.toSpot() } ?: emptyList()
     }
 }
