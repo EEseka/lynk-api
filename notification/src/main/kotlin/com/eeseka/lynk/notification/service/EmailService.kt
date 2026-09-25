@@ -20,12 +20,7 @@ class EmailService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        /**
-         * The custom scheme the client registers, matching the deep link already declared on
-         * HangoutsGraph. It needs no domain verification, which a https link would, so it works
-         * before there is a landing page to fall back to. Swap it for https at launch.
-         */
-        private const val HANGOUT_DEEP_LINK = "lynk://hangout_detail"
+        private const val HANGOUT_DEEP_LINK = "https://lynk.com.ng/hangouts"
     }
 
     fun sendCompleteProfileEmail(email: String, displayName: String?) {

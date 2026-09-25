@@ -108,7 +108,7 @@ class EmailRenderTest : IntegrationTest() {
 
         val email = sentEmail()
         assertEquals("\"$HANGOUT_NAME\" needs a decision from you", email.subject)
-        assertContains(email.body, "lynk://hangout_detail/$HANGOUT_ID")
+        assertContains(email.body, "https://lynk.com.ng/hangouts/$HANGOUT_ID")
     }
 
     @Test
