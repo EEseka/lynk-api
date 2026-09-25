@@ -24,6 +24,7 @@ jwt:
 lynk:
   email:
     url: "http://localhost:8080"
+    logo-url: "https://nprfqkurgivwqjnzkemp.supabase.co/storage/v1/object/public/assets/lynk-logo.png"
   rate-limit:
     ip:
       apply-limit: false

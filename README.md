@@ -205,7 +205,7 @@ every secret arrives from the environment. Nothing sensitive is in the repositor
 |                                                        |                                  |
 |--------------------------------------------------------|----------------------------------|
 | `POSTGRES_PASSWORD` `DATABASE_URL` `DATABASE_USERNAME` | Postgres                         |
-| `SUPABASE_URL` `SUPABASE_SERVICE_KEY`                  | profile picture storage          |
+| `SUPABASE_SERVICE_KEY`                                 | profile picture storage          |
 | `REDIS_PASSWORD` `RABBITMQ_PASSWORD`                   | cache and message queue          |
 | `JWT_SECRET_BASE64` `ADMIN_USERNAME` `ADMIN_PASSWORD`  | auth                             |
 | `GOOGLE_CLIENT_ID` `GOOGLE_PLACES_KEY`                 | Google Sign-In and Places        |

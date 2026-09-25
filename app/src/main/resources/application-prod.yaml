@@ -8,7 +8,7 @@ spring:
       ddl-auto: validate
 
 supabase:
-  url: ${SUPABASE_URL}
+  url: "https://vuibgikrlpgizgwjyhlg.supabase.co"
 
 brevo:
   verify-on-startup: true
@@ -19,6 +19,7 @@ jwt:
 lynk:
   email:
     url: "https://lynk.com.ng"
+    logo-url: "https://vuibgikrlpgizgwjyhlg.supabase.co/storage/v1/object/public/assets/lynk-logo.png"
   rate-limit:
     ip:
       apply-limit: true

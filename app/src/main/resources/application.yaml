@@ -88,7 +88,6 @@ lynk:
     from-name: Lynk
     reply-to: support@lynk.com.ng
     reply-to-name: Lynk Support
-    logo-url: "https://vuibgikrlpgizgwjyhlg.supabase.co/storage/v1/object/public/assets/lynk-logo.png"
 
 brevo:
   url: "https://api.brevo.com/v3"
