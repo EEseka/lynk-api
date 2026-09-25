@@ -30,6 +30,7 @@ class UserRateLimitInterceptor(
                         annotation.unit.toChronoUnit()
                     ),
                     maxRequestsPerUser = annotation.requests,
+                    whenRedisIsDown = annotation.whenRedisIsDown,
                     action = { true }
                 )
             }

@@ -2,6 +2,7 @@ package com.eeseka.lynk.common.api.exception_handling
 
 import com.eeseka.lynk.common.domain.exception.GuestActionNotAllowedException
 import com.eeseka.lynk.common.domain.exception.RateLimitException
+import com.eeseka.lynk.common.domain.exception.RateLimiterUnavailableException
 import com.eeseka.lynk.common.domain.exception.UnauthorizedException
 import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpStatus
@@ -33,6 +34,13 @@ class CommonExceptionHandler {
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     fun onRateLimitExceeded(e: RateLimitException) = mapOf(
         "code" to "RATE_LIMIT_EXCEEDED",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(RateLimiterUnavailableException::class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    fun onRateLimiterUnavailable(e: RateLimiterUnavailableException) = mapOf(
+        "code" to "RATE_LIMITER_UNAVAILABLE",
         "message" to e.message
     )
 

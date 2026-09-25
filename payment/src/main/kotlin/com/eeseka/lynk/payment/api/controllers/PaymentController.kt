@@ -1,6 +1,7 @@
 package com.eeseka.lynk.payment.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.payment.api.dto.BankAccountDto
@@ -57,7 +58,8 @@ class PaymentController(
     @UserRateLimit(
         requests = 5,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
     )
     fun resolveBankAccount(
         @RequestParam @Pattern(regexp = "\\d{10}", message = "An account number must be 10 digits")

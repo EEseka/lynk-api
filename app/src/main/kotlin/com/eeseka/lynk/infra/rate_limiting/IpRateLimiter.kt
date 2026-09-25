@@ -1,7 +1,11 @@
 package com.eeseka.lynk.infra.rate_limiting
 
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.domain.exception.RateLimitException
+import com.eeseka.lynk.common.domain.exception.RateLimiterUnavailableException
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.dao.DataAccessException
 import org.springframework.core.io.Resource
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.data.redis.core.script.DefaultRedisScript
@@ -15,6 +19,8 @@ class IpRateLimiter(
     companion object {
         private const val IP_RATE_LIMIT_PREFIX = "rate_limit:ip"
     }
+
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     @Value("classpath:fixed_window_rate_limit.lua")
     lateinit var rateLimitResource: Resource
@@ -32,16 +38,25 @@ class IpRateLimiter(
         route: String,
         resetsIn: Duration,
         maxRequestsPerIp: Int,
+        whenRedisIsDown: WhenRedisIsDown,
         action: () -> T
     ): T {
         val key = "$IP_RATE_LIMIT_PREFIX:$route:$ipAddress"
 
-        val result = redisTemplate.execute(
-            rateLimitScript,
-            listOf(key),
-            maxRequestsPerIp.toString(),
-            resetsIn.seconds.toString()
-        )
+        val result = try {
+            redisTemplate.execute(
+                rateLimitScript,
+                listOf(key),
+                maxRequestsPerIp.toString(),
+                resetsIn.seconds.toString()
+            )
+        } catch (e: DataAccessException) {
+            logger.warn("Redis is down, {} for {}", whenRedisIsDown, route, e)
+            return when (whenRedisIsDown) {
+                WhenRedisIsDown.ALLOW -> action()
+                WhenRedisIsDown.REFUSE -> throw RateLimiterUnavailableException()
+            }
+        }
 
         val currentCount = result[0]
 

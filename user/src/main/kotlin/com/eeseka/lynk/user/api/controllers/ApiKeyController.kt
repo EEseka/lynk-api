@@ -1,6 +1,7 @@
 package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.config.IpRateLimit
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.user.api.dto.ApiKeyDto
 import com.eeseka.lynk.user.api.dto.CreateApiKeyRequest
 import com.eeseka.lynk.user.api.mappers.toApiKeyDto
@@ -26,7 +27,8 @@ class ApiKeyController(
     @IpRateLimit(
         requests = 3,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
     )
     fun createApiKey(
         @RequestHeader("Authorization") authHeader: String,

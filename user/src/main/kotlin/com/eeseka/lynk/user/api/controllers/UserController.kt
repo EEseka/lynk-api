@@ -1,6 +1,7 @@
 package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.user.api.dto.CreateProfileRequest
 import com.eeseka.lynk.user.api.dto.GenerateProfilePictureUploadUrlRequest
@@ -37,7 +38,8 @@ class UserController(
     @UserRateLimit(
         requests = 20,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
     )
     fun generateUploadUrl(
         @Valid @RequestBody body: GenerateProfilePictureUploadUrlRequest

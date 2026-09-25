@@ -1,6 +1,7 @@
 package com.eeseka.lynk.spot.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
@@ -58,7 +59,8 @@ class SpotController(
     @UserRateLimit(
         requests = 300,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
     )
     @GetMapping("/search")
     fun searchSpots(

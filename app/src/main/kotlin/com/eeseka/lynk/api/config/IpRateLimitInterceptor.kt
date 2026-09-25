@@ -33,6 +33,7 @@ class IpRateLimitInterceptor(
                         annotation.unit.toChronoUnit()
                     ),
                     maxRequestsPerIp = annotation.requests,
+                    whenRedisIsDown = annotation.whenRedisIsDown,
                     action = { true }
                 )
             }

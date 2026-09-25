@@ -1,6 +1,9 @@
 package com.eeseka.lynk.infra.caching
 
+import org.springframework.cache.annotation.CachingConfigurer
 import org.springframework.cache.annotation.EnableCaching
+import org.springframework.cache.interceptor.CacheErrorHandler
+import org.springframework.cache.interceptor.LoggingCacheErrorHandler
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.redis.cache.RedisCacheConfiguration
@@ -14,7 +17,9 @@ import java.time.Duration
 
 @Configuration
 @EnableCaching
-class RedisConfig {
+class RedisConfig : CachingConfigurer {
+
+    override fun errorHandler(): CacheErrorHandler = LoggingCacheErrorHandler()
 
     @Bean
     fun cacheManager(

@@ -3,6 +3,7 @@ package com.eeseka.lynk.user.api.controllers
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.common.api.config.AllowGuest
 import com.eeseka.lynk.common.api.config.IpRateLimit
+import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.user.api.dto.AuthenticatedUserDto
 import com.eeseka.lynk.user.api.dto.GoogleLoginRequest
 import com.eeseka.lynk.user.api.dto.RefreshRequest
@@ -25,7 +26,8 @@ class AuthController(
     @IpRateLimit(
         requests = 50,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.ALLOW
     )
     fun googleLogin(
         @Valid @RequestBody body: GoogleLoginRequest
@@ -37,7 +39,8 @@ class AuthController(
     @IpRateLimit(
         requests = 20,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.ALLOW
     )
     fun guestLogin(request: HttpServletRequest): AuthenticatedUserDto {
         val user = authService.guestLogin()
@@ -51,7 +54,8 @@ class AuthController(
     @IpRateLimit(
         requests = 50,
         duration = 1L,
-        unit = TimeUnit.HOURS
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.ALLOW
     )
     fun refresh(
         @Valid @RequestBody body: RefreshRequest
