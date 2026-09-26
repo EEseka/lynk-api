@@ -3,6 +3,7 @@ package com.eeseka.lynk.support
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
+import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.model.Bank
 import com.eeseka.lynk.payment.domain.model.BankAccount
 import com.eeseka.lynk.payment.infra.bank_logo.BankLogoClient
@@ -30,6 +31,8 @@ class TestHangouts(
     private val mockMvc: MockMvc,
     private val objectMapper: ObjectMapper,
     private val accounts: TestAccounts,
+    private val fixtures: TestFixtures,
+    private val hangoutService: HangoutService,
     private val paystackClient: PaystackClient,
     private val bankLogoClient: BankLogoClient
 ) {
@@ -52,6 +55,33 @@ class TestHangouts(
         enablePayments(host, hangout.id, totalCostKobo, deadline)
 
         return PaidHangout(hangoutId = hangout.id, host = host, guest = guest)
+    }
+
+    /**
+     * A hangout that has happened, with everyone in [attendees] having gone and [pendingInvitees] never
+     * having answered. The date is moved into the past and the real sweep starts it, since only the
+     * host can finish a hangout that is under way.
+     */
+    fun completed(
+        host: TestAccount,
+        attendees: List<TestAccount> = emptyList(),
+        pendingInvitees: List<TestAccount> = emptyList()
+    ): HangoutId {
+        val hangoutId = scheduled(host).id
+        attendees.forEach {
+            invite(host, hangoutId, it)
+            accept(it, hangoutId)
+        }
+        pendingInvitees.forEach { invite(host, hangoutId, it) }
+
+        fixtures.moveScheduledAt(hangoutId, Instant.now().minus(Duration.ofHours(3)))
+        hangoutService.transitionDueHangoutsToOngoing()
+
+        mockMvc.patch("/api/hangouts/$hangoutId/complete") {
+            authenticatedAs(host)
+        }.andExpect { status { isNoContent() } }
+
+        return hangoutId
     }
 
     /** Payments need a scheduled hangout, and a hangout is scheduled once it has a spot. */

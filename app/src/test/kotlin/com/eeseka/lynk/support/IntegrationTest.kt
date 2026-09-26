@@ -1,5 +1,6 @@
 package com.eeseka.lynk.support
 
+import com.eeseka.lynk.hangout.infra.storage.SupabaseHangoutStorageClient
 import com.eeseka.lynk.notification.infra.email.BrevoEmailClient
 import com.eeseka.lynk.notification.infra.push_notification.FirebasePushNotificationClient
 import com.eeseka.lynk.payment.infra.bank_logo.BankLogoClient
@@ -77,6 +78,9 @@ abstract class IntegrationTest {
 
     @MockitoBean
     protected lateinit var supabaseUserStorageClient: SupabaseUserStorageClient
+
+    @MockitoBean
+    protected lateinit var supabaseHangoutStorageClient: SupabaseHangoutStorageClient
 
     // Not a client by name, but it is still a trip to Google: it checks a token against Google's
     // signing certificates. Tests say what a token means instead.

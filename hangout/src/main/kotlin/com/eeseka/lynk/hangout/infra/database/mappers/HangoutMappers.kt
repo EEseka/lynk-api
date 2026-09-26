@@ -3,6 +3,7 @@ package com.eeseka.lynk.hangout.infra.database.mappers
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
 import com.eeseka.lynk.hangout.domain.model.HangoutPayment
+import com.eeseka.lynk.hangout.domain.model.HangoutPhoto
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
@@ -10,6 +11,7 @@ import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutPaymentEntity
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutPhotoEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutUserEntity
 
 fun HangoutUserEntity.toHangoutUser(): HangoutUser {
@@ -29,6 +31,17 @@ fun HangoutUser.toHangoutUserEntity(): HangoutUserEntity {
         username = username,
         displayName = displayName,
         profilePictureUrl = profilePictureUrl
+    )
+}
+
+fun HangoutPhotoEntity.toHangoutPhoto(): HangoutPhoto {
+    return HangoutPhoto(
+        id = id!!,
+        hangoutId = hangoutId,
+        uploader = uploader.toHangoutUser(),
+        status = status,
+        caption = caption,
+        createdAt = createdAt
     )
 }
 

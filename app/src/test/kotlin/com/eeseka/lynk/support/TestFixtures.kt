@@ -185,6 +185,15 @@ class TestFixtures(
         )
     }
 
+    /** Moves a hangout's date, including into the past, which the API itself will not do. */
+    fun moveScheduledAt(hangoutId: HangoutId, scheduledAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE hangout_service.hangouts SET scheduled_at = ? WHERE id = ?",
+            Timestamp.from(scheduledAt),
+            hangoutId
+        )
+    }
+
     /** Ages an account for the nightly sweep that clears guests nobody came back to. */
     fun ageUser(userId: UserId, createdAt: Instant) {
         jdbcTemplate.update(

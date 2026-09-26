@@ -5,7 +5,10 @@ import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalArgumentException
 import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalStateException
 import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
 import com.eeseka.lynk.hangout.domain.exception.HangoutParticipantNotFoundException
+import com.eeseka.lynk.hangout.domain.exception.HangoutPhotoLimitReachedException
+import com.eeseka.lynk.hangout.domain.exception.HangoutPhotoNotFoundException
 import com.eeseka.lynk.hangout.domain.exception.HangoutUserNotFoundException
+import com.eeseka.lynk.hangout.domain.exception.StorageException
 import org.springframework.http.HttpStatus
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -54,6 +57,27 @@ class HangoutExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun onHangoutIllegalArgument(e: HangoutIllegalArgumentException) = mapOf(
         "code" to "HANGOUT_ILLEGAL_ARGUMENT",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(HangoutPhotoNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun onHangoutPhotoNotFound(e: HangoutPhotoNotFoundException) = mapOf(
+        "code" to "HANGOUT_PHOTO_NOT_FOUND",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(HangoutPhotoLimitReachedException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun onHangoutPhotoLimitReached(e: HangoutPhotoLimitReachedException) = mapOf(
+        "code" to "HANGOUT_PHOTO_LIMIT_REACHED",
+        "message" to e.message
+    )
+
+    @ExceptionHandler(StorageException::class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    fun onStorageError(e: StorageException) = mapOf(
+        "code" to "STORAGE_ERROR",
         "message" to e.message
     )
 
