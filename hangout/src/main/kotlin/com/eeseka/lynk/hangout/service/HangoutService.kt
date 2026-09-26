@@ -264,7 +264,7 @@ class HangoutService(
             before = before ?: Instant.now(),
             statuses = statuses,
             vibe = vibe,
-            query = query,
+            query = query?.trim()?.takeIf { it.isNotEmpty() },
             pageable = PageRequest.of(0, pageSize)
         ).content.map { it.toHangoutSummary() }
     }

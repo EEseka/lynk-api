@@ -117,7 +117,7 @@ class SpotService(
         val savedEntities = savedSpotRepository.findByUserIdAndCreatedAtBeforeAndNameContaining(
             userId = userId,
             before = before ?: Instant.now(),
-            query = query,
+            query = query?.trim()?.takeIf { it.isNotEmpty() },
             pageable = PageRequest.of(0, pageSize)
         )
 
