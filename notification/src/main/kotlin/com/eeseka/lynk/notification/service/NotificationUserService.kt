@@ -40,6 +40,6 @@ class NotificationUserService(
         notificationUserRepository.deleteById(userId)
     }
 
-    fun findByUserIds(userIds: Collection<UserId>): List<NotificationUserEntity> =
+    fun findByUserIds(userIds: Set<UserId>): List<NotificationUserEntity> =
         notificationUserRepository.findAllById(userIds)
 }

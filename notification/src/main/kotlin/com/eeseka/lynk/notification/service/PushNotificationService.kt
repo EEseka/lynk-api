@@ -27,7 +27,7 @@ class PushNotificationService(
     private val logger = LoggerFactory.getLogger(javaClass)
 
     fun sendToUsers(
-        recipientIds: Collection<UserId>,
+        recipientIds: Set<UserId>,
         title: String,
         message: String,
         hangoutId: HangoutId,

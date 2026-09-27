@@ -25,7 +25,7 @@ class NotificationService(
     }
 
     fun createNotifications(
-        userIds: Collection<UserId>,
+        userIds: Set<UserId>,
         type: NotificationType,
         hangoutId: HangoutId,
         hangoutName: String,
