@@ -3,6 +3,7 @@ package com.eeseka.lynk.hangout.api.mappers
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
 import com.eeseka.lynk.hangout.api.dto.HangoutParticipantDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPaymentDto
+import com.eeseka.lynk.hangout.api.dto.HangoutPhotoDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPhotoUploadResponse
 import com.eeseka.lynk.hangout.api.dto.HangoutPreviewDto
 import com.eeseka.lynk.hangout.api.dto.HangoutStatsDto
@@ -11,6 +12,8 @@ import com.eeseka.lynk.hangout.api.dto.HangoutUserDto
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
 import com.eeseka.lynk.hangout.domain.model.HangoutPayment
+import com.eeseka.lynk.hangout.domain.model.HangoutPhoto
+import com.eeseka.lynk.hangout.domain.model.HangoutPhotoDownloadUrls
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoUploadCredentials
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
 import com.eeseka.lynk.hangout.domain.model.HangoutStats
@@ -99,6 +102,18 @@ fun HangoutStats.toHangoutStatsDto(): HangoutStatsDto {
     return HangoutStatsDto(
         hostedCount = hostedCount,
         attendedCount = attendedCount
+    )
+}
+
+fun HangoutPhoto.toHangoutPhotoDto(downloadUrls: HangoutPhotoDownloadUrls): HangoutPhotoDto {
+    return HangoutPhotoDto(
+        id = id,
+        uploader = uploader.toHangoutUserDto(),
+        caption = caption,
+        fullUrl = downloadUrls.fullUrl,
+        thumbnailUrl = downloadUrls.thumbnailUrl,
+        urlsExpireAt = downloadUrls.expiresAt,
+        createdAt = createdAt
     )
 }
 

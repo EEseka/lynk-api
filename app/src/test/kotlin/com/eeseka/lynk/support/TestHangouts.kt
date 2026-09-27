@@ -59,7 +59,7 @@ class TestHangouts(
 
     /**
      * A hangout that has happened, with everyone in [attendees] having gone and [pendingInvitees] never
-     * having answered. The date is moved into the past and the real sweep starts it, since only the
+     * having answered. The date is moved into the past, and the real sweep starts it, since only the
      * host can finish a hangout that is under way.
      */
     fun completed(

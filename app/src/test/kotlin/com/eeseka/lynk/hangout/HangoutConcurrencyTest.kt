@@ -2,6 +2,7 @@ package com.eeseka.lynk.hangout
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
+import com.eeseka.lynk.hangout.api.dto.HangoutPhotoUploadResponse
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoUploadCredentials
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutPhotoRepository
@@ -11,6 +12,8 @@ import com.eeseka.lynk.support.authenticatedAs
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
 import org.mockito.kotlin.any
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MvcResult
@@ -18,6 +21,7 @@ import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
+import tools.jackson.core.type.TypeReference
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CyclicBarrier
@@ -86,7 +90,8 @@ class HangoutConcurrencyTest : IntegrationTest() {
     @Test
     fun `holds one person to twenty photos when their uploads arrive together`() {
         val host = accounts.signIn(email = "ada@lynk.test", displayName = "Ada", username = "ada")
-        val hangoutId = hangouts.completed(host)
+        val bola = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
+        val hangoutId = hangouts.completed(host, attendees = listOf(bola))
         given(supabaseHangoutStorageClient.generateSignedUploadUrls(any(), any())).willAnswer {
             HangoutPhotoUploadCredentials(it.getArgument(1), "https://storage.test/full", "https://storage.test/thumb", emptyMap(), Instant.now())
         }
@@ -118,6 +123,50 @@ class HangoutConcurrencyTest : IntegrationTest() {
             )
         }
         assertEquals(20, hangoutPhotoRepository.count())
+    }
+
+    @Test
+    fun `removes a photo once when several deletes of it arrive together`() {
+        val host = accounts.signIn(email = "ada@lynk.test", displayName = "Ada", username = "ada")
+        val bola = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
+        val hangoutId = hangouts.completed(host, attendees = listOf(bola))
+        given(supabaseHangoutStorageClient.generateSignedUploadUrls(any(), any())).willAnswer {
+            HangoutPhotoUploadCredentials(it.getArgument(1), "https://storage.test/full", "https://storage.test/thumb", emptyMap(), Instant.now())
+        }
+        given(supabaseHangoutStorageClient.hasUploadedFiles(any(), any())).willReturn(true)
+
+        val response = mockMvc.post("/api/hangouts/$hangoutId/photos/generate-upload-urls") {
+            contentType = MediaType.APPLICATION_JSON
+            authenticatedAs(host)
+            content = """{"count":1}"""
+        }.andReturn().response.contentAsString
+        val photoId = objectMapper.readValue(response, object : TypeReference<List<HangoutPhotoUploadResponse>>() {}).single().photoId
+        mockMvc.post("/api/hangouts/$hangoutId/photos/$photoId/confirm") {
+            contentType = MediaType.APPLICATION_JSON
+            authenticatedAs(host)
+            content = """{"caption":null}"""
+        }.andExpect { status { isNoContent() } }
+
+        val barrier = CyclicBarrier(RACING_INVITEES)
+        val executor = Executors.newFixedThreadPool(RACING_INVITEES)
+        val results = try {
+            (1..RACING_INVITEES).map {
+                executor.submit<MvcResult> {
+                    barrier.await()
+                    mockMvc.delete("/api/hangouts/$hangoutId/photos/$photoId") {
+                        authenticatedAs(host)
+                    }.andReturn()
+                }
+            }.map { it.get(30, TimeUnit.SECONDS) }
+        } finally {
+            executor.shutdownNow()
+        }
+
+        val statuses = results.map { it.response.status }
+        assertEquals(1, statuses.count { it == 204 }, "expected exactly one delete to remove the photo: $statuses")
+        assertTrue(statuses.all { it == 204 || it == 404 }, "a delete failed for the wrong reason: $statuses")
+        // The files are removed once, by the delete that removed the row
+        verify(supabaseHangoutStorageClient, times(1)).deleteFiles(any(), any())
     }
 
     /** Every request waits at the same barrier, so they all start together. */

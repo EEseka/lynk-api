@@ -36,15 +36,18 @@ class HangoutPhotoUploadService(
         val photo = hangoutPhotoService.getOwnPhoto(userId = userId, hangoutId = hangoutId, photoId = photoId)
         if (photo.status == HangoutPhotoStatus.READY) return
 
-        if (!supabaseHangoutStorageClient.hasUploadedFiles(hangoutId = hangoutId, photoId = photoId)) {
+        val hasUploadedFiles = supabaseHangoutStorageClient.hasUploadedFiles(hangoutId = hangoutId, photoId = photoId)
+        if (!hasUploadedFiles) {
             throw HangoutIllegalStateException("The photo has not finished uploading.")
         }
 
         val cleanCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
-        if (hangoutPhotoService.markReady(photoId = photoId, caption = cleanCaption)) return
+        val wasMarkedReady = hangoutPhotoService.markPhotoStatusReady(photoId = photoId, caption = cleanCaption)
+        if (wasMarkedReady) return
 
         // Nothing changed: either another confirm got there first, or the upload expired and was swept
-        if (hangoutPhotoService.findPhotoStatus(photoId) != HangoutPhotoStatus.READY) {
+        val currentStatus = hangoutPhotoService.findPhotoStatus(photoId)
+        if (currentStatus != HangoutPhotoStatus.READY) {
             throw HangoutIllegalStateException("This upload expired. Please add the photo again.")
         }
     }

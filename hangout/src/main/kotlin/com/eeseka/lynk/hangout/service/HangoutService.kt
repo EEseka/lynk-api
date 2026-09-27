@@ -829,6 +829,39 @@ class HangoutService(
         }
     }
 
+    @Scheduled(fixedDelay = 15 * 60 * 1000)
+    @Transactional
+    fun remindHostsToCompleteHangouts() {
+        val now = Instant.now()
+        val reminderDays = listOf(1L, 3L, 7L)
+
+        reminderDays.forEachIndexed { remindersSent, days ->
+            val dueHangouts = hangoutRepository.findByStatusAndCompletionRemindersSentAndScheduledAtBefore(
+                status = HangoutStatus.ONGOING,
+                remindersSent = remindersSent,
+                cutoff = now.minus(days, ChronoUnit.DAYS)
+            )
+            if (dueHangouts.isEmpty()) return@forEachIndexed
+
+            hangoutRepository.markCompletionRemindersSent(
+                ids = dueHangouts.map { it.id!! },
+                remindersSent = remindersSent + 1
+            )
+
+            dueHangouts.forEach { hangout ->
+                eventPublisher.publish(
+                    HangoutEvent.HangoutCompletionReminder(
+                        hangoutId = hangout.id!!,
+                        hangoutName = hangout.name,
+                        hostId = hangout.hostId
+                    )
+                )
+            }
+
+            logger.info("Reminded {} hosts to finish hangouts still going after {} days", dueHangouts.size, days)
+        }
+    }
+
     @Scheduled(cron = "0 0 3 * * *")
     @Transactional
     fun cleanupSoloUnpaidHangouts() {

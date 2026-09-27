@@ -1,6 +1,7 @@
 package com.eeseka.lynk.support
 
 import com.eeseka.lynk.common.domain.type.HangoutId
+import com.eeseka.lynk.common.domain.type.HangoutPhotoId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
@@ -191,6 +192,15 @@ class TestFixtures(
             "UPDATE hangout_service.hangouts SET scheduled_at = ? WHERE id = ?",
             Timestamp.from(scheduledAt),
             hangoutId
+        )
+    }
+
+    /** Ages a photo for the sweep that clears uploads nobody finished. */
+    fun agePhoto(photoId: HangoutPhotoId, createdAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE hangout_service.hangout_photos SET created_at = ? WHERE id = ?",
+            Timestamp.from(createdAt),
+            photoId
         )
     }
 

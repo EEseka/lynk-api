@@ -13,6 +13,7 @@ object HangoutEventConstants {
     const val HANGOUT_PAYMENT_DEADLINE_RESOLVED_KEY = "hangout.payment_deadline_resolved"
     const val HANGOUT_PAYMENT_DEADLINE_CHANGED_KEY = "hangout.payment_deadline_changed"
     const val HANGOUT_STARTED_KEY = "hangout.started"
+    const val HANGOUT_COMPLETION_REMINDER_KEY = "hangout.completion_reminder"
     const val HANGOUT_PAYMENT_RECEIVED_KEY = "hangout.payment_received"
     const val HANGOUT_REFUND_ISSUED_KEY = "hangout.refund_issued"
 }

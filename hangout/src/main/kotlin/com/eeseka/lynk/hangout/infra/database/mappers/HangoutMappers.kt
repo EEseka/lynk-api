@@ -37,7 +37,6 @@ fun HangoutUser.toHangoutUserEntity(): HangoutUserEntity {
 fun HangoutPhotoEntity.toHangoutPhoto(): HangoutPhoto {
     return HangoutPhoto(
         id = id!!,
-        hangoutId = hangoutId,
         uploader = uploader.toHangoutUser(),
         status = status,
         caption = caption,
