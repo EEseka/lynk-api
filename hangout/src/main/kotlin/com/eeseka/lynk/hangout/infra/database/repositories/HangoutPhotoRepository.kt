@@ -56,17 +56,36 @@ interface HangoutPhotoRepository : JpaRepository<HangoutPhotoEntity, HangoutPhot
     @Query("DELETE FROM HangoutPhotoEntity p WHERE p.id = :id AND p.hangoutId = :hangoutId")
     fun deleteByIdAndHangoutId(id: HangoutPhotoId, hangoutId: HangoutId): Int
 
+    @Query("""
+        SELECT p
+        FROM HangoutPhotoEntity p
+        JOIN FETCH p.uploader
+        WHERE p.status = :status
+        AND p.announcedAt IS NULL
+    """)
+    fun findByStatusAndAnnouncedAtIsNull(status: HangoutPhotoStatus): List<HangoutPhotoEntity>
+
+    @Modifying
+    @Query("UPDATE HangoutPhotoEntity p SET p.caption = :caption WHERE p.id = :id")
+    fun updateCaptionById(id: HangoutPhotoId, caption: String?): Int
+
+    @Modifying
+    @Query("UPDATE HangoutPhotoEntity p SET p.announcedAt = :announcedAt WHERE p.id IN :ids")
+    fun markAnnounced(ids: Collection<HangoutPhotoId>, announcedAt: Instant)
+
     @Query("SELECT p.status FROM HangoutPhotoEntity p WHERE p.id = :id")
     fun findStatusById(id: HangoutPhotoId): HangoutPhotoStatus?
 
     // The per-person cap: PENDING rows count too, since each one holds a slot
     fun countByHangoutIdAndUploaderUserId(hangoutId: HangoutId, uploaderId: UserId): Int
 
+    fun countByHangoutIdAndStatus(hangoutId: HangoutId, status: HangoutPhotoStatus): Int
+
     // Only a PENDING row turns READY, so a second confirmation, or one that lost to the sweep, changes 0 rows
     @Modifying
     @Query("""
         UPDATE HangoutPhotoEntity p
-        SET p.status = :readyStatus, p.caption = :caption, p.confirmedAt = :confirmedAt
+        SET p.status = :readyStatus, p.confirmedAt = :confirmedAt
         WHERE p.id = :id
         AND p.status = :pendingStatus
     """)
@@ -74,7 +93,6 @@ interface HangoutPhotoRepository : JpaRepository<HangoutPhotoEntity, HangoutPhot
         id: HangoutPhotoId,
         pendingStatus: HangoutPhotoStatus,
         readyStatus: HangoutPhotoStatus,
-        caption: String?,
         confirmedAt: Instant
     ): Int
 }

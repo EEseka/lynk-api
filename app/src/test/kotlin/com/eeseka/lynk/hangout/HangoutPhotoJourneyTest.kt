@@ -3,6 +3,7 @@ package com.eeseka.lynk.hangout
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.HangoutPhotoId
 import com.eeseka.lynk.hangout.api.dto.HangoutPhotoDto
+import com.eeseka.lynk.hangout.api.dto.HangoutPhotoStatsDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPhotoUploadResponse
 import com.eeseka.lynk.hangout.domain.exception.StorageException
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoDownloadUrls
@@ -13,6 +14,8 @@ import com.eeseka.lynk.hangout.infra.database.repositories.HangoutPhotoRepositor
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
 import com.eeseka.lynk.hangout.service.HangoutPhotoService
 import com.eeseka.lynk.hangout.service.HangoutService
+import com.eeseka.lynk.notification.domain.model.NotificationType
+import com.eeseka.lynk.notification.infra.database.repositories.NotificationRepository
 import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.TestAccount
 import com.eeseka.lynk.support.authenticatedAs
@@ -49,6 +52,9 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
 
     @Autowired
     private lateinit var hangoutService: HangoutService
+
+    @Autowired
+    private lateinit var notificationRepository: NotificationRepository
 
     @BeforeEach
     fun storageAcceptsEverything() {
@@ -128,6 +134,10 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
             .andExpect { status { isForbidden() } }
         mockMvc.get("/api/hangouts/$hangoutId/photos") { authenticatedAs(stranger) }
             .andExpect { status { isNotFound() } }
+        mockMvc.get("/api/hangouts/$hangoutId/photos/stats") { authenticatedAs(bola) }
+            .andExpect { status { isForbidden() } }
+        mockMvc.get("/api/hangouts/$hangoutId/photos/stats") { authenticatedAs(stranger) }
+            .andExpect { status { isNotFound() } }
     }
 
     @Test
@@ -206,12 +216,9 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
         assertEquals(2, uploads.map { it.photoId }.distinct().size)
         assertEquals("https://storage.test/full", uploads.first().fullUploadUrl)
 
-        confirm(bola, hangoutId, uploads.first().photoId, caption = "  Ada having the time of her life  ")
-            .andExpect { status { isNoContent() } }
+        confirm(bola, hangoutId, uploads.first().photoId).andExpect { status { isNoContent() } }
 
-        val photo = hangoutPhotoRepository.findById(uploads.first().photoId).get()
-        assertEquals(HangoutPhotoStatus.READY, photo.status)
-        assertEquals("Ada having the time of her life", photo.caption)
+        assertEquals(HangoutPhotoStatus.READY, hangoutPhotoRepository.findById(uploads.first().photoId).get().status)
         assertEquals(HangoutPhotoStatus.PENDING, hangoutPhotoRepository.findById(uploads.last().photoId).get().status)
     }
 
@@ -310,10 +317,10 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
         val hangoutId = hangouts.completed(host, attendees = listOf(bola))
         val upload = generateUploadUrls(host, hangoutId, count = 1).single()
 
-        confirm(host, hangoutId, upload.photoId, caption = "First").andExpect { status { isNoContent() } }
-        confirm(host, hangoutId, upload.photoId, caption = "Second").andExpect { status { isNoContent() } }
+        confirm(host, hangoutId, upload.photoId).andExpect { status { isNoContent() } }
+        confirm(host, hangoutId, upload.photoId).andExpect { status { isNoContent() } }
 
-        assertEquals("First", hangoutPhotoRepository.findById(upload.photoId).get().caption)
+        assertEquals(HangoutPhotoStatus.READY, hangoutPhotoRepository.findById(upload.photoId).get().status)
     }
 
     @Test
@@ -342,14 +349,22 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `refuses a caption longer than two hundred characters`() {
+    fun `tells each person the album size and how many of their twenty they have used`() {
         val host = signIn("ada")
         val bola = signIn("bola")
         val hangoutId = hangouts.completed(host, attendees = listOf(bola))
-        val upload = generateUploadUrls(host, hangoutId, count = 1).single()
+        addPhoto(host, hangoutId)
+        addPhoto(bola, hangoutId)
+        // An unfinished upload holds one of the host's twenty but is not in the album yet
+        generateUploadUrls(host, hangoutId, count = 1)
 
-        confirm(host, hangoutId, upload.photoId, caption = "a".repeat(201))
-            .andExpect { status { isBadRequest() } }
+        val hostsStats = getPhotoStats(host, hangoutId)
+        val bolasStats = getPhotoStats(bola, hangoutId)
+
+        assertEquals(2, hostsStats.photoCount)
+        assertEquals(2, hostsStats.myPhotoCount)
+        assertEquals(2, bolasStats.photoCount)
+        assertEquals(1, bolasStats.myPhotoCount)
     }
 
     @Test
@@ -370,6 +385,57 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
         assertEquals(true, hangoutPhotoRepository.existsById(finished))
         verify(supabaseHangoutStorageClient).deleteFiles(hangoutId, abandoned)
         verify(supabaseHangoutStorageClient, never()).deleteFiles(hangoutId, finished)
+    }
+
+    @Test
+    fun `tells the others once about a batch of photos, never the person who added them`() {
+        val host = signIn("ada")
+        val bola = signIn("bola")
+        val chidi = signIn("chidi")
+        val hangoutId = hangouts.completed(host, attendees = listOf(bola, chidi))
+        repeat(3) { addPhoto(bola, hangoutId) }
+
+        hangoutPhotoService.announceNewPhotos()
+        hangoutPhotoService.announceNewPhotos()
+        broker.deliverEvents()
+
+        val announcements = photosAddedNotifications()
+        assertEquals(setOf(host.userId, chidi.userId), announcements.map { it.userId }.toSet())
+        assertEquals(2, announcements.size)
+        assertEquals("Bola", announcements.first().actorDisplayName)
+    }
+
+    @Test
+    fun `tells everyone about each person's photos separately`() {
+        val host = signIn("ada")
+        val bola = signIn("bola")
+        val hangoutId = hangouts.completed(host, attendees = listOf(bola))
+        addPhoto(bola, hangoutId)
+        addPhoto(host, hangoutId)
+
+        hangoutPhotoService.announceNewPhotos()
+        broker.deliverEvents()
+
+        val announcements = photosAddedNotifications()
+        assertEquals("Bola", announcements.single { it.userId == host.userId }.actorDisplayName)
+        assertEquals("Ada", announcements.single { it.userId == bola.userId }.actorDisplayName)
+    }
+
+    @Test
+    fun `waits for a photo to finish uploading before telling anybody`() {
+        val host = signIn("ada")
+        val bola = signIn("bola")
+        val hangoutId = hangouts.completed(host, attendees = listOf(bola))
+        val photoId = generateUploadUrls(bola, hangoutId, count = 1).single().photoId
+
+        hangoutPhotoService.announceNewPhotos()
+        broker.deliverEvents()
+        assertEquals(0, photosAddedNotifications().size)
+
+        confirm(bola, hangoutId, photoId).andExpect { status { isNoContent() } }
+        hangoutPhotoService.announceNewPhotos()
+        broker.deliverEvents()
+        assertEquals(1, photosAddedNotifications().size)
     }
 
     @Test
@@ -413,11 +479,25 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
         assertEquals(true, hangoutRepository.existsById(hangoutId))
     }
 
-    /** A finished photo, the way the app adds one: ask for upload URLs, then confirm. */
+    /** A finished photo, the way the app adds one: ask for upload URLs, confirm, then caption it. */
     private fun addPhoto(account: TestAccount, hangoutId: HangoutId, caption: String? = null): HangoutPhotoId {
         val photoId = generateUploadUrls(account, hangoutId, count = 1).single().photoId
-        confirm(account, hangoutId, photoId, caption).andExpect { status { isNoContent() } }
+        confirm(account, hangoutId, photoId).andExpect { status { isNoContent() } }
+        caption?.let {
+            updateCaption(account, hangoutId, photoId, it).andExpect { status { isNoContent() } }
+        }
         return photoId
+    }
+
+    private fun photosAddedNotifications() =
+        notificationRepository.findAll().filter { it.type == NotificationType.PHOTOS_ADDED }
+
+    private fun getPhotoStats(account: TestAccount, hangoutId: HangoutId): HangoutPhotoStatsDto {
+        val response = mockMvc.get("/api/hangouts/$hangoutId/photos/stats") {
+            authenticatedAs(account)
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+        return objectMapper.readValue(response, HangoutPhotoStatsDto::class.java)
     }
 
     private fun getPhotos(
@@ -470,15 +550,8 @@ class HangoutPhotoJourneyTest : IntegrationTest() {
         return objectMapper.readValue(response, object : TypeReference<List<HangoutPhotoUploadResponse>>() {})
     }
 
-    private fun confirm(
-        account: TestAccount,
-        hangoutId: HangoutId,
-        photoId: HangoutPhotoId,
-        caption: String? = null
-    ): ResultActionsDsl =
+    private fun confirm(account: TestAccount, hangoutId: HangoutId, photoId: HangoutPhotoId): ResultActionsDsl =
         mockMvc.post("/api/hangouts/$hangoutId/photos/$photoId/confirm") {
-            contentType = MediaType.APPLICATION_JSON
             authenticatedAs(account)
-            content = objectMapper.writeValueAsString(mapOf("caption" to caption))
         }
 }

@@ -142,9 +142,7 @@ class HangoutConcurrencyTest : IntegrationTest() {
         }.andReturn().response.contentAsString
         val photoId = objectMapper.readValue(response, object : TypeReference<List<HangoutPhotoUploadResponse>>() {}).single().photoId
         mockMvc.post("/api/hangouts/$hangoutId/photos/$photoId/confirm") {
-            contentType = MediaType.APPLICATION_JSON
             authenticatedAs(host)
-            content = """{"caption":null}"""
         }.andExpect { status { isNoContent() } }
 
         val barrier = CyclicBarrier(RACING_INVITEES)

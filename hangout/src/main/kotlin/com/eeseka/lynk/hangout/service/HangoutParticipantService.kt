@@ -43,8 +43,11 @@ class HangoutParticipantService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    // Statuses in which the roster can still change (invite / rsvp)
+    // Statuses in which an attendee can still leave
     private val openStatuses = listOf(HangoutStatus.VOTING, HangoutStatus.SCHEDULED)
+
+    // Invites can be sent, answered or withdrawn while the hangout is under way; they end when the hangout does
+    private val inviteOpenStatuses = openStatuses + HangoutStatus.ONGOING
 
     // Statuses that occupy a slot toward maxAttendees (PENDING reserves)
     private val activeStatuses = listOf(RsvpStatus.ATTENDING, RsvpStatus.PENDING)
@@ -115,7 +118,7 @@ class HangoutParticipantService(
             throw HangoutAccessDeniedException("Only the host can invite participants.")
         }
 
-        if (hangout.status !in openStatuses) {
+        if (hangout.status !in inviteOpenStatuses) {
             throw HangoutIllegalStateException("Cannot invite to a ${hangout.status.name.lowercase()} hangout.")
         }
 
@@ -207,7 +210,7 @@ class HangoutParticipantService(
         val hangout = hangoutRepository.findHangoutById(hangoutId, userId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
-        if (hangout.status !in openStatuses) {
+        if (hangout.status !in inviteOpenStatuses) {
             throw HangoutIllegalStateException("Cannot RSVP to a ${hangout.status.name.lowercase()} hangout.")
         }
 
@@ -269,7 +272,7 @@ class HangoutParticipantService(
             throw HangoutAccessDeniedException("Only the host can withdraw invites.")
         }
 
-        if (hangout.status !in openStatuses) {
+        if (hangout.status !in inviteOpenStatuses) {
             throw HangoutIllegalStateException("Cannot change participants of a ${hangout.status.name.lowercase()} hangout.")
         }
 

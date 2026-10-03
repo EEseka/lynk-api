@@ -12,6 +12,7 @@ import com.eeseka.lynk.hangout.domain.event.HangoutCompletedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutCreatedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPaymentDeadlineResolvedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPayoutOutcomeEvent
+import com.eeseka.lynk.hangout.domain.event.HangoutStartedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutUpdatedEvent
 import com.eeseka.lynk.hangout.domain.exception.HangoutAccessDeniedException
 import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalArgumentException
@@ -231,11 +232,15 @@ class HangoutService(
         val hangoutEntity = hangoutRepository.findHangoutById(hangoutId, userId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
-        // Only a PENDING invitee sees the preview
-        val isPending = hangoutEntity.participants.any {
-            it.hangoutUser.userId == userId && it.rsvpStatus == RsvpStatus.PENDING
+        val rsvpStatus = hangoutEntity.participants
+            .firstOrNull { it.hangoutUser.userId == userId }
+            ?.rsvpStatus
+
+        if (rsvpStatus == RsvpStatus.DECLINED) {
+            throw HangoutIllegalStateException("You declined this invite.")
         }
-        if (!isPending) {
+
+        if (rsvpStatus != RsvpStatus.PENDING) {
             throw HangoutAccessDeniedException("This preview is only available for a pending invite.")
         }
 
@@ -821,6 +826,10 @@ class HangoutService(
                     hangoutName = hangout.name,
                     recipientIds = recipientIds
                 )
+            )
+            // Refresh the live lobby: an open list or detail still shows the hangout as upcoming.
+            applicationEventPublisher.publishEvent(
+                HangoutStartedEvent(hangoutId = hangout.id!!)
             )
         }
 

@@ -112,6 +112,15 @@ sealed class HangoutEvent(
         override val eventKey: String = HangoutEventConstants.HANGOUT_COMPLETION_REMINDER_KEY
     ) : HangoutEvent(), LynkEvent
 
+    data class PhotosAdded(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        val uploaderDisplayName: String,
+        val photoCount: Int,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PHOTOS_ADDED_KEY
+    ) : HangoutEvent(), LynkEvent
+
     data class PaymentReceived(
         val hangoutId: HangoutId,
         val hangoutName: String,

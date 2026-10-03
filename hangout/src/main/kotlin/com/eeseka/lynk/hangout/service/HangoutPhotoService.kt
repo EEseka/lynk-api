@@ -2,10 +2,13 @@ package com.eeseka.lynk.hangout.service
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.HangoutPhotoId
+import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_PHOTOS_PER_UPLOADER
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_PHOTOS
 import com.eeseka.lynk.hangout.domain.event.HangoutPhotoDeletedEvent
+import com.eeseka.lynk.hangout.domain.event.HangoutPhotosAddedEvent
 import com.eeseka.lynk.hangout.domain.exception.HangoutAccessDeniedException
 import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalStateException
 import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
@@ -13,6 +16,7 @@ import com.eeseka.lynk.hangout.domain.exception.HangoutPhotoLimitReachedExceptio
 import com.eeseka.lynk.hangout.domain.exception.HangoutPhotoNotFoundException
 import com.eeseka.lynk.hangout.domain.model.HangoutPhoto
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoDownloadUrls
+import com.eeseka.lynk.hangout.domain.model.HangoutPhotoStats
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
@@ -37,6 +41,7 @@ class HangoutPhotoService(
     private val hangoutPhotoRepository: HangoutPhotoRepository,
     private val hangoutParticipantRepository: HangoutParticipantRepository,
     private val supabaseHangoutStorageClient: SupabaseHangoutStorageClient,
+    private val eventPublisher: EventPublisher,
     private val applicationEventPublisher: ApplicationEventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -98,12 +103,11 @@ class HangoutPhotoService(
     }
 
     @Transactional
-    fun markPhotoStatusReady(photoId: HangoutPhotoId, caption: String?): Boolean {
+    fun markPhotoStatusReady(photoId: HangoutPhotoId): Boolean {
         val updatedRows = hangoutPhotoRepository.markReadyByIdAndStatus(
             id = photoId,
             pendingStatus = HangoutPhotoStatus.PENDING,
             readyStatus = HangoutPhotoStatus.READY,
-            caption = caption,
             confirmedAt = Instant.now()
         )
         return updatedRows == 1
@@ -142,6 +146,25 @@ class HangoutPhotoService(
         }
     }
 
+    fun getPhotoStats(userId: UserId, hangoutId: HangoutId): HangoutPhotoStats {
+        val rsvpStatus = hangoutParticipantRepository.findRsvpStatusByHangoutIdAndUserId(hangoutId, userId)
+            ?: throw HangoutNotFoundException(hangoutId.toString())
+        if (rsvpStatus != RsvpStatus.ATTENDING) {
+            throw HangoutAccessDeniedException("Only people who went can see the photos.")
+        }
+
+        return HangoutPhotoStats(
+            photoCount = hangoutPhotoRepository.countByHangoutIdAndStatus(
+                hangoutId = hangoutId,
+                status = HangoutPhotoStatus.READY
+            ),
+            myPhotoCount = hangoutPhotoRepository.countByHangoutIdAndUploaderUserId(
+                hangoutId = hangoutId,
+                uploaderId = userId
+            )
+        )
+    }
+
     @Transactional
     fun updateCaption(userId: UserId, hangoutId: HangoutId, photoId: HangoutPhotoId, caption: String?) {
         val photo = hangoutPhotoRepository.findByIdAndHangoutId(photoId, hangoutId)
@@ -155,9 +178,10 @@ class HangoutPhotoService(
         }
 
         val cleanCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
-        hangoutPhotoRepository.save(
-            photo.apply { this.caption = cleanCaption }
-        )
+        val updatedRows = hangoutPhotoRepository.updateCaptionById(photoId, cleanCaption)
+        if (updatedRows == 0) {
+            throw HangoutPhotoNotFoundException(photoId.toString())
+        }
     }
 
     // The uploader removes their own photo; the host can remove anyone's
@@ -209,6 +233,54 @@ class HangoutPhotoService(
         deletePhotosAndFiles(abandoned)
 
         logger.info("Deleted {} photo uploads that were never finished", abandoned.size)
+    }
+
+    // One push per person per album, however many photos they've added since the last run
+    @Scheduled(fixedDelay = 5 * 60 * 1000)
+    @Transactional
+    fun announceNewPhotos() {
+        val unannounced = hangoutPhotoRepository.findByStatusAndAnnouncedAtIsNull(HangoutPhotoStatus.READY)
+        if (unannounced.isEmpty()) return
+
+        hangoutPhotoRepository.markAnnounced(
+            ids = unannounced.map { it.id!! },
+            announcedAt = Instant.now()
+        )
+
+        val hangoutsById = hangoutRepository
+            .findAllById(unannounced.map { it.hangoutId }.toSet())
+            .associateBy { it.id!! }
+
+        unannounced.groupBy { it.hangoutId }.forEach { (hangoutId, photos) ->
+            val hangout = hangoutsById[hangoutId] ?: return@forEach
+            val attendeeIds = hangout.participants
+                .filter { it.rsvpStatus == RsvpStatus.ATTENDING }
+                .map { it.hangoutUser.userId }
+                .toSet()
+
+            photos.groupBy { it.uploader.userId }.forEach { (uploaderId, uploaderPhotos) ->
+                // Push: the others went too, and this is their album
+                eventPublisher.publish(
+                    HangoutEvent.PhotosAdded(
+                        hangoutId = hangoutId,
+                        hangoutName = hangout.name,
+                        recipientIds = attendeeIds - uploaderId,
+                        uploaderDisplayName = uploaderPhotos.first().uploader.displayName,
+                        photoCount = uploaderPhotos.size
+                    )
+                )
+            }
+
+            // Refresh the live lobby
+            applicationEventPublisher.publishEvent(
+                HangoutPhotosAddedEvent(
+                    hangoutId = hangoutId,
+                    uploaderIds = photos.map { it.uploader.userId }.toSet()
+                )
+            )
+        }
+
+        logger.info("Announced {} new photos", unannounced.size)
     }
 
     private fun deletePhotosAndFiles(photos: List<HangoutPhotoEntity>) {

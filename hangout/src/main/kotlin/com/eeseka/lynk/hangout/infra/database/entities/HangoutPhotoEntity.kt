@@ -47,6 +47,9 @@ class HangoutPhotoEntity(
     @Column(nullable = true)
     var confirmedAt: Instant? = null,
 
+    @Column(nullable = true)
+    var announcedAt: Instant? = null,
+
     @Column(nullable = true, length = 200)
     var caption: String? = null,
 

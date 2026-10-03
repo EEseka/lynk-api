@@ -434,6 +434,19 @@ class LobbyWebSocketHandler(
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onHangoutStarted(event: HangoutStartedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.HANGOUT_STARTED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyHangoutDto(hangoutId = event.hangoutId)
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onHangoutCompleted(event: HangoutCompletedEvent) {
         // Terminal: tell everyone FIRST, then tear the whole hangout out of the maps.
         broadcastToHangout(
@@ -467,6 +480,39 @@ class LobbyWebSocketHandler(
             )
         )
         purgeHangout(event.hangoutId)
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onHangoutPhotosAdded(event: HangoutPhotosAddedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PHOTOS_ADDED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyPhotosAddedDto(
+                        hangoutId = event.hangoutId,
+                        uploaderIds = event.uploaderIds
+                    )
+                )
+            )
+        )
+    }
+
+    // An open album still holds the photo, and its files are already gone
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onHangoutPhotoDeleted(event: HangoutPhotoDeletedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PHOTO_DELETED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyPhotoDto(
+                        hangoutId = event.hangoutId,
+                        photoId = event.photoId
+                    )
+                )
+            )
+        )
     }
 
     // Add a now-attending user's live sockets to this hangout.

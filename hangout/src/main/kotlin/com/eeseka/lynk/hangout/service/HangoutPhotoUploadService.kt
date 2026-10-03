@@ -32,7 +32,7 @@ class HangoutPhotoUploadService(
         }
     }
 
-    fun confirmUpload(userId: UserId, hangoutId: HangoutId, photoId: HangoutPhotoId, caption: String?) {
+    fun confirmUpload(userId: UserId, hangoutId: HangoutId, photoId: HangoutPhotoId) {
         val photo = hangoutPhotoService.getOwnPhoto(userId = userId, hangoutId = hangoutId, photoId = photoId)
         if (photo.status == HangoutPhotoStatus.READY) return
 
@@ -41,8 +41,7 @@ class HangoutPhotoUploadService(
             throw HangoutIllegalStateException("The photo has not finished uploading.")
         }
 
-        val cleanCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
-        val wasMarkedReady = hangoutPhotoService.markPhotoStatusReady(photoId = photoId, caption = cleanCaption)
+        val wasMarkedReady = hangoutPhotoService.markPhotoStatusReady(photoId)
         if (wasMarkedReady) return
 
         // Nothing changed: either another confirm got there first, or the upload expired and was swept

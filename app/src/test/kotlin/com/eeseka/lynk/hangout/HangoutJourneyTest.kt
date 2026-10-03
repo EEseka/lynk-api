@@ -4,10 +4,12 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
+import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.TestAccount
 import com.eeseka.lynk.support.authenticatedAs
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.*
 import java.time.Duration
@@ -16,6 +18,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class HangoutJourneyTest : IntegrationTest() {
+
+    @Autowired
+    private lateinit var hangoutService: HangoutService
 
     @Test
     fun `creates a hangout with its host already in it`() {
@@ -152,6 +157,72 @@ class HangoutJourneyTest : IntegrationTest() {
         rsvp(friend, hangout.id, RsvpStatus.DECLINED).andExpect { status { isOk() } }
 
         invite(host, hangout.id, stranger).andExpect { status { isCreated() } }
+    }
+
+    /** Turning up late is normal, so an invite stays answerable until the hangout ends. */
+    @Test
+    fun `lets somebody accept an invite while the hangout is under way`() {
+        val host = signIn("ada")
+        val friend = signIn("bola")
+        val hangoutId = hangouts.scheduled(host).id
+        invite(host, hangoutId, friend).andExpect { status { isCreated() } }
+        startHangout(hangoutId)
+
+        accept(friend, hangoutId).andExpect {
+            status { isOk() }
+            jsonPath("$.rsvpStatus") { value(RsvpStatus.ATTENDING.name) }
+        }
+    }
+
+    @Test
+    fun `lets the host invite somebody while the hangout is under way`() {
+        val host = signIn("ada")
+        val friend = signIn("bola")
+        val hangoutId = hangouts.scheduled(host).id
+        startHangout(hangoutId)
+
+        invite(host, hangoutId, friend).andExpect { status { isCreated() } }
+    }
+
+    @Test
+    fun `lets the host withdraw an invite while the hangout is under way`() {
+        val host = signIn("ada")
+        val friend = signIn("bola")
+        val hangoutId = hangouts.scheduled(host).id
+        invite(host, hangoutId, friend).andExpect { status { isCreated() } }
+        startHangout(hangoutId)
+
+        mockMvc.delete("/api/hangouts/$hangoutId/participants/${friend.userId}") {
+            authenticatedAs(host)
+        }.andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `refuses an answer once the hangout is over`() {
+        val host = signIn("ada")
+        val friend = signIn("bola")
+        val hangoutId = hangouts.scheduled(host).id
+        invite(host, hangoutId, friend).andExpect { status { isCreated() } }
+        startHangout(hangoutId)
+        mockMvc.patch("/api/hangouts/$hangoutId/complete") {
+            authenticatedAs(host)
+        }.andExpect { status { isNoContent() } }
+
+        accept(friend, hangoutId).andExpect { status { isConflict() } }
+    }
+
+    /** A 403 would send the app into a hangout this person cannot open, so a decline gets its own answer. */
+    @Test
+    fun `tells somebody who declined instead of showing them the invite`() {
+        val host = signIn("ada")
+        val friend = signIn("bola")
+        val hangout = createHangout(host)
+        invite(host, hangout.id, friend).andExpect { status { isCreated() } }
+        rsvp(friend, hangout.id, RsvpStatus.DECLINED).andExpect { status { isOk() } }
+
+        mockMvc.get("/api/hangouts/${hangout.id}/preview") {
+            authenticatedAs(friend)
+        }.andExpect { status { isConflict() } }
     }
 
     @Test
@@ -298,6 +369,12 @@ class HangoutJourneyTest : IntegrationTest() {
             authenticatedAs(host)
             content = """{"userId":"${invitee.userId}"}"""
         }
+
+    // The start time moves into the past and the real sweep starts it, as it would on the server
+    private fun startHangout(hangoutId: HangoutId) {
+        fixtures.moveScheduledAt(hangoutId, Instant.now().minus(Duration.ofMinutes(5)))
+        hangoutService.transitionDueHangoutsToOngoing()
+    }
 
     private fun accept(account: TestAccount, hangoutId: HangoutId) =
         rsvp(account, hangoutId, RsvpStatus.ATTENDING)

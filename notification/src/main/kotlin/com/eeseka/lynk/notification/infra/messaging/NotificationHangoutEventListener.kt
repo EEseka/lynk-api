@@ -50,6 +50,7 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PaymentDeadlineChanged -> onPaymentDeadlineChanged(event)
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
                 is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
+                is HangoutEvent.PhotosAdded -> onPhotosAdded(event)
                 is HangoutEvent.PaymentReceived -> onPaymentReceived(event)
                 is HangoutEvent.RefundIssued -> onRefundIssued(event)
             }
@@ -261,6 +262,23 @@ class NotificationHangoutEventListener(
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
             message = "Did it end? Mark it complete to open the album"
+        )
+    }
+
+    private fun onPhotosAdded(event: HangoutEvent.PhotosAdded) {
+        val message = if (event.photoCount == 1) {
+            "${event.uploaderDisplayName} added a photo to the album"
+        } else {
+            "${event.uploaderDisplayName} added ${event.photoCount} photos to the album"
+        }
+
+        notify(
+            recipientIds = event.recipientIds,
+            type = NotificationType.PHOTOS_ADDED,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            actorDisplayName = event.uploaderDisplayName,
+            message = message
         )
     }
 
