@@ -11,10 +11,6 @@ spring:
         format_sql: true
         show_sql: true
 
-  mail:
-    host: smtp-relay.brevo.com
-    username: a130b3001@smtp-brevo.com
-
 supabase:
   url: "https://nprfqkurgivwqjnzkemp.supabase.co"
 

@@ -57,11 +57,9 @@ class SpotService(
         val isSaved = savedSpotRepository.existsByUserIdAndGooglePlaceId(userId, spotId)
 
         // OPPORTUNISTIC UPDATE:
-        // If the spot is saved, the local DB snapshot might be stale (e.g., the venue moved).
-        // Since we just fetched fresh data from Google, we silently update our DB snapshot.
-        if (isSaved) {
-            updateStaleSnapshot(userId, spot)
-        }
+        // Saved snapshots go stale (the venue moved, or Google expired the cover photo's name).
+        // Since we just fetched fresh data from Google, we silently update every saved copy of it.
+        updateStaleSnapshots(spot)
 
         return spot.copy(isSaved = isSaved)
     }
@@ -117,7 +115,7 @@ class SpotService(
         val savedEntities = savedSpotRepository.findByUserIdAndCreatedAtBeforeAndNameContaining(
             userId = userId,
             before = before ?: Instant.now(),
-            query = query,
+            query = query?.trim()?.takeIf { it.isNotEmpty() },
             pageable = PageRequest.of(0, pageSize)
         )
 
@@ -134,10 +132,9 @@ class SpotService(
         return spots.map { it.copy(isSaved = it.id in savedIdsInView) }
     }
 
-    private fun updateStaleSnapshot(userId: UserId, freshSpot: Spot) {
+    private fun updateStaleSnapshots(freshSpot: Spot) {
         try {
             savedSpotRepository.updateSnapshotData(
-                userId = userId,
                 googlePlaceId = freshSpot.id,
                 name = freshSpot.name,
                 coverPhotoUrl = freshSpot.photoUrls.firstOrNull(),

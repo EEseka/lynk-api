@@ -21,7 +21,7 @@ import java.time.Instant
     name = "notifications",
     schema = "notification_service",
     indexes = [
-        Index(name = "idx_notifications_user_id_created_at", columnList = "user_id, created_at")
+        Index(name = "idx_notifications_user_id_created_at", columnList = "user_id, created_at DESC")
     ]
 )
 class NotificationEntity(

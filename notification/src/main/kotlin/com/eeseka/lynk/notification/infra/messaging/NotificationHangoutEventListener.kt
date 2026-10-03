@@ -49,6 +49,8 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PayoutOutcome -> onPayoutOutcome(event)
                 is HangoutEvent.PaymentDeadlineChanged -> onPaymentDeadlineChanged(event)
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
+                is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
+                is HangoutEvent.PhotosAdded -> onPhotosAdded(event)
                 is HangoutEvent.PaymentReceived -> onPaymentReceived(event)
                 is HangoutEvent.RefundIssued -> onRefundIssued(event)
             }
@@ -143,7 +145,7 @@ class NotificationHangoutEventListener(
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
             actorDisplayName = event.hostDisplayName,
-            message = "That's a wrap on this hangout"
+            message = "All done. Got photos from it? The album is open"
         )
     }
 
@@ -250,6 +252,33 @@ class NotificationHangoutEventListener(
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
             message = "Kicking off now, come see who's there"
+        )
+    }
+
+    private fun onHangoutCompletionReminder(event: HangoutEvent.HangoutCompletionReminder) {
+        notify(
+            recipientIds = setOf(event.hostId),
+            type = NotificationType.HANGOUT_COMPLETION_REMINDER,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            message = "Did it end? Mark it complete to open the album"
+        )
+    }
+
+    private fun onPhotosAdded(event: HangoutEvent.PhotosAdded) {
+        val message = if (event.photoCount == 1) {
+            "${event.uploaderDisplayName} added a photo to the album"
+        } else {
+            "${event.uploaderDisplayName} added ${event.photoCount} photos to the album"
+        }
+
+        notify(
+            recipientIds = event.recipientIds,
+            type = NotificationType.PHOTOS_ADDED,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            actorDisplayName = event.uploaderDisplayName,
+            message = message
         )
     }
 

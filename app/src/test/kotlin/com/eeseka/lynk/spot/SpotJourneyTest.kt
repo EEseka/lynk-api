@@ -175,6 +175,25 @@ class SpotJourneyTest : IntegrationTest() {
         }
     }
 
+    /** Google expires photo names, so one fresh look at a place renews every saved copy of it. */
+    @Test
+    fun `refreshes everyone's saved copy when somebody looks the place up`() {
+        val other = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
+        saveSpot(SPOT_ID).andExpect { status { isCreated() } }
+        mockMvc.post("/api/spots/$SPOT_ID/save") { authenticatedAs(other) }.andExpect { status { isCreated() } }
+        given(googlePlacesClient.getSpotById(eq(SPOT_ID)))
+            .willReturn(spot(SPOT_ID, "Terra Kulture").copy(photoUrls = listOf("https://places.test/fresh.jpg")))
+
+        mockMvc.get("/api/spots/$SPOT_ID") { authenticatedAs(other) }.andExpect { status { isOk() } }
+
+        mockMvc.get("/api/spots/saved") {
+            authenticatedAs(user)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].photoUrls[0]") { value("https://places.test/fresh.jpg") }
+        }
+    }
+
     @Test
     fun `searches somebody's saved spots by name`() {
         saveSpot(SPOT_ID).andExpect { status { isCreated() } }

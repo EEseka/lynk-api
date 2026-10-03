@@ -61,11 +61,10 @@ interface SavedSpotRepository : JpaRepository<SavedSpotEntity, Long> {
             s.shortAddress = :shortAddress, 
             s.latitude = :latitude, 
             s.longitude = :longitude 
-        WHERE s.userId = :userId AND s.googlePlaceId = :googlePlaceId
+        WHERE s.googlePlaceId = :googlePlaceId
     """
     )
     fun updateSnapshotData(
-        userId: UserId,
         googlePlaceId: String,
         name: String,
         coverPhotoUrl: String?,

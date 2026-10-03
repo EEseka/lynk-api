@@ -12,6 +12,7 @@ import com.eeseka.lynk.hangout.domain.event.HangoutCompletedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutCreatedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPaymentDeadlineResolvedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPayoutOutcomeEvent
+import com.eeseka.lynk.hangout.domain.event.HangoutStartedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutUpdatedEvent
 import com.eeseka.lynk.hangout.domain.exception.HangoutAccessDeniedException
 import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalArgumentException
@@ -231,11 +232,15 @@ class HangoutService(
         val hangoutEntity = hangoutRepository.findHangoutById(hangoutId, userId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
-        // Only a PENDING invitee sees the preview
-        val isPending = hangoutEntity.participants.any {
-            it.hangoutUser.userId == userId && it.rsvpStatus == RsvpStatus.PENDING
+        val rsvpStatus = hangoutEntity.participants
+            .firstOrNull { it.hangoutUser.userId == userId }
+            ?.rsvpStatus
+
+        if (rsvpStatus == RsvpStatus.DECLINED) {
+            throw HangoutIllegalStateException("You declined this invite.")
         }
-        if (!isPending) {
+
+        if (rsvpStatus != RsvpStatus.PENDING) {
             throw HangoutAccessDeniedException("This preview is only available for a pending invite.")
         }
 
@@ -264,7 +269,7 @@ class HangoutService(
             before = before ?: Instant.now(),
             statuses = statuses,
             vibe = vibe,
-            query = query,
+            query = query?.trim()?.takeIf { it.isNotEmpty() },
             pageable = PageRequest.of(0, pageSize)
         ).content.map { it.toHangoutSummary() }
     }
@@ -822,10 +827,47 @@ class HangoutService(
                     recipientIds = recipientIds
                 )
             )
+            // Refresh the live lobby: an open list or detail still shows the hangout as upcoming.
+            applicationEventPublisher.publishEvent(
+                HangoutStartedEvent(hangoutId = hangout.id!!)
+            )
         }
 
         if (dueHangouts.isNotEmpty()) {
             logger.info("Started {} hangouts whose time had come", dueHangouts.size)
+        }
+    }
+
+    @Scheduled(fixedDelay = 15 * 60 * 1000)
+    @Transactional
+    fun remindHostsToCompleteHangouts() {
+        val now = Instant.now()
+        val reminderDays = listOf(1L, 3L, 7L)
+
+        reminderDays.forEachIndexed { remindersSent, days ->
+            val dueHangouts = hangoutRepository.findByStatusAndCompletionRemindersSentAndScheduledAtBefore(
+                status = HangoutStatus.ONGOING,
+                remindersSent = remindersSent,
+                cutoff = now.minus(days, ChronoUnit.DAYS)
+            )
+            if (dueHangouts.isEmpty()) return@forEachIndexed
+
+            hangoutRepository.markCompletionRemindersSent(
+                ids = dueHangouts.map { it.id!! },
+                remindersSent = remindersSent + 1
+            )
+
+            dueHangouts.forEach { hangout ->
+                eventPublisher.publish(
+                    HangoutEvent.HangoutCompletionReminder(
+                        hangoutId = hangout.id!!,
+                        hangoutName = hangout.name,
+                        hostId = hangout.hostId
+                    )
+                )
+            }
+
+            logger.info("Reminded {} hosts to finish hangouts still going after {} days", dueHangouts.size, days)
         }
     }
 

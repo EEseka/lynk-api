@@ -61,11 +61,11 @@ class DeviceTokenService(
         deviceTokenRepository.deleteByUserId(userId)
     }
 
-    fun findTokensForUsers(userIds: Collection<UserId>): List<DeviceToken> =
+    fun findTokensForUsers(userIds: Set<UserId>): List<DeviceToken> =
         deviceTokenRepository.findByUserIdIn(userIds).map { it.toDeviceToken() }
 
     @Transactional
-    fun removeTokens(tokens: Collection<String>) {
+    fun removeTokens(tokens: List<String>) {
         if (tokens.isEmpty()) return
 
         deviceTokenRepository.deleteByTokenIn(tokens)

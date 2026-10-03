@@ -19,6 +19,9 @@ class SupabaseUserStorageClient(
     companion object {
         private const val BUCKET_NAME = "profile_pictures"
 
+        // Supabase ignores expiresIn on upload URLs and always issues them for 2 hours
+        private const val UPLOAD_URL_EXPIRY_SECONDS = 7200L
+
         private val allowedMimeTypes = mapOf(
             "image/jpeg" to "jpg",
             "image/jpg" to "jpg",
@@ -37,15 +40,12 @@ class SupabaseUserStorageClient(
         val publicUrl = "$supabaseUrl/storage/v1/object/public/$path"
 
         return ProfilePictureUploadCredentials(
-            uploadUrl = createSignedUrl(
-                path = path,
-                expiresInSeconds = 300
-            ),
+            uploadUrl = createSignedUrl(path),
             publicUrl = publicUrl,
             headers = mapOf(
                 "Content-Type" to mimeType
             ),
-            expiresAt = Instant.now().plusSeconds(300)
+            expiresAt = Instant.now().plusSeconds(UPLOAD_URL_EXPIRY_SECONDS)
         )
     }
 
@@ -67,16 +67,10 @@ class SupabaseUserStorageClient(
         }
     }
 
-    private fun createSignedUrl(path: String, expiresInSeconds: Int): String {
-        val json = """
-            { "expiresIn": $expiresInSeconds }
-        """.trimIndent()
-
+    private fun createSignedUrl(path: String): String {
         val response = supabaseRestClient
             .post()
             .uri("/storage/v1/object/upload/sign/$path")
-            .header("Content-Type", "application/json")
-            .body(json)
             .retrieve()
             .body<SignedUploadResponse>()
             ?: throw StorageException("Failed to create signed URL")
