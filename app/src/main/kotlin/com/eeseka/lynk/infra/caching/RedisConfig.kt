@@ -52,11 +52,15 @@ class RedisConfig : CachingConfigurer {
             .cacheDefaults(defaultCacheConfig)
             .withCacheConfiguration(
                 "trending_spots",
-                defaultCacheConfig.entryTtl(Duration.ofMinutes(15))
+                defaultCacheConfig.entryTtl(Duration.ofHours(1L))
             )
             .withCacheConfiguration(
                 "spot_details",
-                defaultCacheConfig.entryTtl(Duration.ofDays(1L))
+                defaultCacheConfig.entryTtl(Duration.ofHours(1L)) // Short, because a spot carries whether it's open now and when it next opens or closes
+            )
+            .withCacheConfiguration(
+                "top_spots",
+                defaultCacheConfig.entryTtl(Duration.ofHours(1L))
             )
             .withCacheConfiguration(
                 "paystack_banks",

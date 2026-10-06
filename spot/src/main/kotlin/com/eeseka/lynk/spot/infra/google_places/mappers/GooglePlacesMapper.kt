@@ -20,10 +20,11 @@ import com.eeseka.lynk.spot.infra.google_places.dto.GoogleReviewSummary
 
 fun GooglePlace.toSpot(): Spot? {
     val location = location ?: return null
+    val name = displayName?.text?.takeIf { it.isNotBlank() } ?: return null
 
     return Spot(
         id = id,
-        name = displayName?.text ?: "Unknown",
+        name = name,
         typeLabel = primaryTypeDisplayName?.text,
         description = editorialSummary?.text,
         generativeSummary = generativeSummary?.toSpotAiSummary(),

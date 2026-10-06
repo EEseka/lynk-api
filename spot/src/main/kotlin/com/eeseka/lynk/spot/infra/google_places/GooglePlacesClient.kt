@@ -17,6 +17,10 @@ import org.springframework.web.client.body
 class GooglePlacesClient(
     private val googlePlacesRestClient: RestClient
 ) {
+    companion object {
+        private const val TOP_SPOTS_COUNT = 10
+    }
+
     private val placeFields = listOf(
         "id", "displayName", "primaryTypeDisplayName", "editorialSummary", "generativeSummary", "reviewSummary",
         "photos", "primaryType", "types", "priceLevel", "priceRange", "rating", "userRatingCount",
@@ -27,7 +31,9 @@ class GooglePlacesClient(
         "internationalPhoneNumber", "websiteUri", "googleMapsUri", "googleMapsLinks"
     )
 
-    private val searchFieldMask = placeFields.joinToString(",") { "places.$it" } + ",nextPageToken"
+    private val listFieldMask = placeFields.joinToString(",") { "places.$it" }
+
+    private val searchFieldMask = "$listFieldMask,nextPageToken"
 
     private val detailsFieldMask = placeFields.joinToString(",")
 
@@ -38,6 +44,30 @@ class GooglePlacesClient(
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
         return searchNearby(latitude, longitude, limit, radiusInMeters = 5000.0, rankByDistance = false)
             .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = 50000.0, rankByDistance = true) }
+    }
+
+    @Cacheable(
+        value = ["top_spots"],
+        key = "#city.trim().toLowerCase()"
+    )
+    fun getTopSpots(city: String): List<Spot> {
+        val body = mapOf(
+            "textQuery" to "popular places to hang out in ${city.trim()}",
+            "pageSize" to 20 // Twice what's shown, so closed places can drop out and still leave ten
+        )
+
+        val response = googlePlacesRestClient.post()
+            .uri("/places:searchText")
+            .header("X-Goog-FieldMask", listFieldMask)
+            .body(body)
+            .retrieve()
+            .body<GooglePlacesSearchResponse>()
+
+        return response?.places
+            ?.mapNotNull { it.toSpot() }
+            ?.filter { it.isOpenForBusiness() }
+            ?.take(TOP_SPOTS_COUNT)
+            ?: emptyList()
     }
 
     fun searchSpots(
@@ -164,7 +194,7 @@ class GooglePlacesClient(
 
         val response = googlePlacesRestClient.post()
             .uri("/places:searchNearby")
-            .header("X-Goog-FieldMask", searchFieldMask.replace(",nextPageToken", ""))
+            .header("X-Goog-FieldMask", listFieldMask)
             .body(body)
             .retrieve()
             .body<GooglePlacesSearchResponse>()

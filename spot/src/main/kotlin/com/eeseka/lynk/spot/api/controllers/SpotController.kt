@@ -56,6 +56,18 @@ class SpotController(
         ).map { it.toSpotDto() }
     }
 
+    @GetMapping("/top")
+    fun getTopSpots(
+        @RequestParam
+        @NotBlank
+        city: String
+    ): List<SpotDto> {
+        return spotService.getTopSpots(
+            city = city,
+            userId = requestUserId
+        ).map { it.toSpotDto() }
+    }
+
     @UserRateLimit(
         requests = 300,
         duration = 1L,
