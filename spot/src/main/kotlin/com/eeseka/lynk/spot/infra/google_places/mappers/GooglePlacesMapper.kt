@@ -36,7 +36,7 @@ fun GooglePlace.toSpot(): Spot? {
         rating = rating,
         reviewCount = userRatingCount ?: 0,
         businessStatus = mapBusinessStatus(businessStatus),
-        openingHours = currentOpeningHours?.toSpotOpeningHours(),
+        openingHours = currentOpeningHours?.toSpotOpeningHours(utcOffsetMinutes),
         amenities = toSpotAmenities(),
         parking = parkingOptions?.toSpotParking(),
         payment = paymentOptions?.toSpotPayment(),
@@ -82,11 +82,12 @@ private fun mapBusinessStatus(businessStatus: String?): BusinessStatus? {
     }
 }
 
-private fun GoogleOpeningHours.toSpotOpeningHours() = SpotOpeningHours(
+private fun GoogleOpeningHours.toSpotOpeningHours(utcOffsetMinutes: Int?) = SpotOpeningHours(
     isOpenNow = openNow,
     weekdayDescriptions = weekdayDescriptions ?: emptyList(),
     nextOpenTime = nextOpenTime,
-    nextCloseTime = nextCloseTime
+    nextCloseTime = nextCloseTime,
+    utcOffsetMinutes = utcOffsetMinutes
 )
 
 private fun GooglePlace.toSpotAmenities(): SpotAmenities? {

@@ -70,7 +70,8 @@ private fun SpotOpeningHours.toSpotOpeningHoursDto() = SpotOpeningHoursDto(
     isOpenNow = isOpenNow,
     weekdayDescriptions = weekdayDescriptions,
     nextOpenTime = nextOpenTime,
-    nextCloseTime = nextCloseTime
+    nextCloseTime = nextCloseTime,
+    utcOffsetMinutes = utcOffsetMinutes
 )
 
 private fun SpotAmenities.toSpotAmenitiesDto() = SpotAmenitiesDto(

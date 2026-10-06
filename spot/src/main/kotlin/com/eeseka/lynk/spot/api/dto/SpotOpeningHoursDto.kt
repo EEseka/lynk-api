@@ -6,5 +6,6 @@ data class SpotOpeningHoursDto(
     val isOpenNow: Boolean?,
     val weekdayDescriptions: List<String>,
     val nextOpenTime: Instant?,
-    val nextCloseTime: Instant?
+    val nextCloseTime: Instant?,
+    val utcOffsetMinutes: Int?
 )

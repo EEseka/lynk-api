@@ -26,6 +26,7 @@ data class GooglePlace(
     val userRatingCount: Int?,
     val businessStatus: String?,
     val currentOpeningHours: GoogleOpeningHours?,
+    val utcOffsetMinutes: Int?,
     val goodForGroups: Boolean?,
     val reservable: Boolean?,
     val liveMusic: Boolean?,

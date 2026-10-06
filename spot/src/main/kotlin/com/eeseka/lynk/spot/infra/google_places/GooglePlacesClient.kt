@@ -24,7 +24,7 @@ class GooglePlacesClient(
     private val placeFields = listOf(
         "id", "displayName", "primaryTypeDisplayName", "editorialSummary", "generativeSummary", "reviewSummary",
         "photos", "primaryType", "types", "priceLevel", "priceRange", "rating", "userRatingCount",
-        "businessStatus", "currentOpeningHours",
+        "businessStatus", "currentOpeningHours", "utcOffsetMinutes",
         "goodForGroups", "reservable", "liveMusic", "outdoorSeating", "servesCocktails", "goodForWatchingSports",
         "parkingOptions", "paymentOptions",
         "formattedAddress", "shortFormattedAddress", "location",
