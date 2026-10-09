@@ -2,6 +2,7 @@ package com.eeseka.lynk.hangout
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
+import com.eeseka.lynk.hangout.domain.event.HangoutUpdatedEvent
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.service.HangoutService
@@ -11,16 +12,22 @@ import com.eeseka.lynk.support.authenticatedAs
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
+import org.springframework.test.context.event.ApplicationEvents
+import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.test.web.servlet.*
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+@RecordApplicationEvents
 class HangoutJourneyTest : IntegrationTest() {
 
     @Autowired
     private lateinit var hangoutService: HangoutService
+
+    @Autowired
+    private lateinit var applicationEvents: ApplicationEvents
 
     @Test
     fun `creates a hangout with its host already in it`() {
@@ -320,6 +327,30 @@ class HangoutJourneyTest : IntegrationTest() {
         mockMvc.get("/api/hangouts/${hangout.id}") {
             authenticatedAs(stranger)
         }.andExpect { status { isNotFound() } }
+    }
+
+    /** A save with nothing changed would flash "the host updated this" on every guest's open screen. */
+    @Test
+    fun `tells nobody when the host saves the hangout without changing anything`() {
+        val host = signIn("ada")
+        val hangout = createHangout(host)
+
+        mockMvc.put("/api/hangouts/${hangout.id}") {
+            contentType = MediaType.APPLICATION_JSON
+            authenticatedAs(host)
+            content = """
+                {
+                  "name": "${hangout.name}",
+                  "description": "${hangout.description}",
+                  "vibe": "${hangout.vibe}",
+                  "scheduledAt": "${hangout.scheduledAt}",
+                  "maxAttendees": null,
+                  "spotId": null
+                }
+            """.trimIndent()
+        }.andExpect { status { isOk() } }
+
+        assertEquals(0, applicationEvents.stream(HangoutUpdatedEvent::class.java).count())
     }
 
     private fun signIn(username: String): TestAccount = accounts.signIn(
