@@ -17,6 +17,7 @@ import org.springframework.test.context.event.RecordApplicationEvents
 import org.springframework.test.web.servlet.*
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -369,7 +370,8 @@ class HangoutJourneyTest : IntegrationTest() {
 
     private fun postHangout(
         host: TestAccount,
-        scheduledAt: Instant = Instant.now().plus(Duration.ofDays(3)),
+        // Linux clocks tick in nanoseconds but Postgres keeps microseconds, so a raw now() never round-trips
+        scheduledAt: Instant = Instant.now().plus(Duration.ofDays(3)).truncatedTo(ChronoUnit.SECONDS),
         maxAttendees: Int? = null
     ): ResultActionsDsl = mockMvc.post("/api/hangouts") {
         contentType = MediaType.APPLICATION_JSON
