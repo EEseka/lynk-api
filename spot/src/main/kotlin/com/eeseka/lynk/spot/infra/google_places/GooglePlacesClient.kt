@@ -1,5 +1,6 @@
 package com.eeseka.lynk.spot.infra.google_places
 
+import com.eeseka.lynk.spot.domain.model.BusinessStatus
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
@@ -16,19 +17,57 @@ import org.springframework.web.client.body
 class GooglePlacesClient(
     private val googlePlacesRestClient: RestClient
 ) {
-    private val searchFieldMask =
-        "places.id,places.displayName,places.editorialSummary,places.photos,places.primaryType,places.types,places.priceLevel,places.rating,places.userRatingCount,places.regularOpeningHours,places.formattedAddress,places.shortFormattedAddress,places.location,places.websiteUri,places.googleMapsUri,nextPageToken"
+    companion object {
+        private const val TOP_SPOTS_COUNT = 10
+    }
 
-    private val detailsFieldMask =
-        "id,displayName,editorialSummary,photos,primaryType,types,priceLevel,rating,userRatingCount,regularOpeningHours,formattedAddress,shortFormattedAddress,location,websiteUri,googleMapsUri"
+    private val placeFields = listOf(
+        "id", "displayName", "primaryTypeDisplayName", "editorialSummary", "generativeSummary", "reviewSummary",
+        "photos", "primaryType", "types", "priceLevel", "priceRange", "rating", "userRatingCount",
+        "businessStatus", "currentOpeningHours", "utcOffsetMinutes",
+        "goodForGroups", "reservable", "liveMusic", "outdoorSeating", "servesCocktails", "goodForWatchingSports",
+        "parkingOptions", "paymentOptions",
+        "formattedAddress", "shortFormattedAddress", "location",
+        "internationalPhoneNumber", "websiteUri", "googleMapsUri", "googleMapsLinks"
+    )
+
+    private val listFieldMask = placeFields.joinToString(",") { "places.$it" }
+
+    private val searchFieldMask = "$listFieldMask,nextPageToken"
+
+    private val detailsFieldMask = placeFields.joinToString(",")
 
     @Cacheable(
         value = ["trending_spots"],
-        key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0"
+        key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0 + '_' + #limit"
     )
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
         return searchNearby(latitude, longitude, limit, radiusInMeters = 5000.0, rankByDistance = false)
             .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = 50000.0, rankByDistance = true) }
+    }
+
+    @Cacheable(
+        value = ["top_spots"],
+        key = "#city.trim().toLowerCase()"
+    )
+    fun getTopSpots(city: String): List<Spot> {
+        val body = mapOf(
+            "textQuery" to "popular places to hang out in ${city.trim()}",
+            "pageSize" to 20 // Twice what's shown, so closed places can drop out and still leave ten
+        )
+
+        val response = googlePlacesRestClient.post()
+            .uri("/places:searchText")
+            .header("X-Goog-FieldMask", listFieldMask)
+            .body(body)
+            .retrieve()
+            .body<GooglePlacesSearchResponse>()
+
+        return response?.places
+            ?.mapNotNull { it.toSpot() }
+            ?.filter { it.isOpenForBusiness() }
+            ?.take(TOP_SPOTS_COUNT)
+            ?: emptyList()
     }
 
     fun searchSpots(
@@ -97,7 +136,7 @@ class GooglePlacesClient(
             .retrieve()
             .body<GooglePlacesSearchResponse>()
 
-        val spots = response?.places?.map { it.toSpot() } ?: emptyList()
+        val spots = response?.places?.mapNotNull { it.toSpot() }?.filter { it.isOpenForBusiness() } ?: emptyList()
         return Pair(spots, response?.nextPageToken)
     }
 
@@ -155,11 +194,16 @@ class GooglePlacesClient(
 
         val response = googlePlacesRestClient.post()
             .uri("/places:searchNearby")
-            .header("X-Goog-FieldMask", searchFieldMask.replace(",nextPageToken", ""))
+            .header("X-Goog-FieldMask", listFieldMask)
             .body(body)
             .retrieve()
             .body<GooglePlacesSearchResponse>()
 
-        return response?.places?.map { it.toSpot() } ?: emptyList()
+        return response?.places?.mapNotNull { it.toSpot() }?.filter { it.isOpenForBusiness() } ?: emptyList()
+    }
+
+    // Lists never suggest a closed venue; details still return one so a saved or chosen spot can say it closed
+    private fun Spot.isOpenForBusiness(): Boolean {
+        return businessStatus == null || businessStatus == BusinessStatus.OPERATIONAL
     }
 }

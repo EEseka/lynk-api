@@ -171,6 +171,8 @@ class HangoutService(
                 )
             }
         }
+        // Nothing moved, so there is nothing to save and nobody to tell.
+        if (changes.isEmpty()) return Pair(hangoutEntity.toHangout(), fetchSpotSafely(spotId, hostId))
 
         val savedHangout = hangoutRepository.save(
             hangoutEntity.apply {
@@ -191,17 +193,15 @@ class HangoutService(
             .map { it.hangoutUser.userId }
             .toSet()
 
-        if (changes.isNotEmpty()) {
-            eventPublisher.publish(
-                HangoutEvent.HangoutUpdated(
-                    hangoutId = hangoutId,
-                    hangoutName = cleanName,
-                    recipientIds = recipientIds,
-                    hostDisplayName = hostDisplayName,
-                    changes = changes
-                )
+        eventPublisher.publish(
+            HangoutEvent.HangoutUpdated(
+                hangoutId = hangoutId,
+                hangoutName = cleanName,
+                recipientIds = recipientIds,
+                hostDisplayName = hostDisplayName,
+                changes = changes
             )
-        }
+        )
         // Tell everyone in the live lobby to refresh their detail & list view.
         applicationEventPublisher.publishEvent(
             HangoutUpdatedEvent(
@@ -654,6 +654,8 @@ class HangoutService(
         if (newDeadline.isAfter(hangoutEntity.scheduledAt)) {
             throw HangoutIllegalArgumentException("The payment deadline must be on or before the hangout date.")
         }
+        
+        if (payment.state == PaymentState.COLLECTING && payment.deadline == newDeadline) return
 
         hangoutRepository.save(
             hangoutEntity.apply {

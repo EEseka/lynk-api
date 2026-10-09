@@ -29,6 +29,11 @@ class SpotService(
         return enrichWithSavedState(rawSpots, userId)
     }
 
+    fun getTopSpots(city: String, userId: UserId): List<Spot> {
+        val rawSpots = googlePlacesClient.getTopSpots(city)
+        return enrichWithSavedState(rawSpots, userId)
+    }
+
     fun searchSpots(
         latitude: Double,
         longitude: Double,
@@ -126,8 +131,7 @@ class SpotService(
         if (spots.isEmpty()) return spots
 
         val spotIdsInView = spots.map { it.id }.toSet()
-        val savedIdsInView = savedSpotRepository
-            .findSavedGooglePlaceIdsByUserIdAndGooglePlaceIdIn(userId, spotIdsInView)
+        val savedIdsInView = savedSpotRepository.findSavedGooglePlaceIdsByUserIdAndGooglePlaceIdIn(userId, spotIdsInView)
 
         return spots.map { it.copy(isSaved = it.id in savedIdsInView) }
     }

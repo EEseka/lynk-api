@@ -25,7 +25,6 @@ import kotlin.test.assertEquals
 class SpotJourneyTest : IntegrationTest() {
 
     private companion object {
-        // A Google place id, which is what the path variable carries - no slashes in it.
         const val SPOT_ID = "ChIJterrakulture"
         const val OTHER_SPOT_ID = "ChIJnokbyalara"
         const val LATITUDE = 6.4281
@@ -241,6 +240,34 @@ class SpotJourneyTest : IntegrationTest() {
         }
     }
 
+    @Test
+    fun `marks the saved ones in a city's top spots`() {
+        saveSpot(SPOT_ID).andExpect { status { isCreated() } }
+        given(googlePlacesClient.getTopSpots(eq("Lagos")))
+            .willReturn(listOf(spot(SPOT_ID, "Terra Kulture"), spot(OTHER_SPOT_ID, "Nok by Alara")))
+
+        mockMvc.get("/api/spots/top") {
+            authenticatedAs(user)
+            param("city", "Lagos")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(2) }
+            jsonPath("$[0].isSaved") { value(true) }
+            jsonPath("$[1].isSaved") { value(false) }
+        }
+    }
+
+    @Test
+    fun `refuses a top list for no city`() {
+        mockMvc.get("/api/spots/top") {
+            authenticatedAs(user)
+            param("city", " ")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("VALIDATION_ERROR") }
+        }
+    }
+
     private fun saveSpot(spotId: String) = mockMvc.post("/api/spots/$spotId/save") {
         authenticatedAs(user)
     }
@@ -248,19 +275,28 @@ class SpotJourneyTest : IntegrationTest() {
     private fun spot(id: String, name: String) = Spot(
         id = id,
         name = name,
+        typeLabel = null,
         description = "Somewhere to eat",
+        generativeSummary = null,
+        reviewSummary = null,
         photoUrls = listOf("https://places.test/$id.jpg"),
         category = SpotCategory.RESTAURANT,
-        tags = listOf("jollof"),
         priceLevel = PriceLevel.MODERATE,
+        priceRange = null,
         rating = 4.5,
         reviewCount = 120,
-        isOpenNow = true,
+        businessStatus = null,
+        openingHours = null,
+        amenities = null,
+        parking = null,
+        payment = null,
         shortAddress = "Victoria Island, Lagos",
         latitude = LATITUDE,
         longitude = LONGITUDE,
+        phoneNumber = null,
         websiteUrl = null,
         googleMapsUrl = null,
+        directionsUrl = null,
         isSaved = false
     )
 }

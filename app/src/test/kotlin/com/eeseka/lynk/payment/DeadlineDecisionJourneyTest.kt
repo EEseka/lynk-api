@@ -1,5 +1,6 @@
 package com.eeseka.lynk.payment
 
+import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.PaymentState
@@ -10,6 +11,11 @@ import com.eeseka.lynk.support.PaidHangout
 import com.eeseka.lynk.support.TestAccount
 import com.eeseka.lynk.support.authenticatedAs
 import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.ArgumentMatchers.isA
+import org.mockito.BDDMockito.then
+import org.mockito.Mockito.clearInvocations
+import org.mockito.Mockito.never
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.ResultActionsDsl
@@ -18,6 +24,7 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import kotlin.test.assertEquals
 
 /**
@@ -131,6 +138,25 @@ class DeadlineDecisionJourneyTest : IntegrationTest() {
         }.andExpect { status { isNoContent() } }
     }
 
+    /** Every attendee is told when the deadline moves, so a move to the same date must tell nobody. */
+    @Test
+    fun `says nothing when the deadline is moved to the date it already has`() {
+        val paid = hangouts.withPaymentsOn(totalCostKobo = SHARE_KOBO * 2)
+        // Postgres keeps microseconds, so a whole second reads back exactly as it was sent.
+        val newDeadline = Instant.now().plus(Duration.ofDays(3)).truncatedTo(ChronoUnit.SECONDS)
+        moveDeadline(paid.host, paid.hangoutId, newDeadline)
+        clearInvocations(rabbitTemplate)
+
+        moveDeadline(paid.host, paid.hangoutId, newDeadline)
+            .andExpect { status { isNoContent() } }
+
+        then(rabbitTemplate).should(never()).convertAndSend(
+            anyString(),
+            anyString(),
+            isA(HangoutEvent.PaymentDeadlineChanged::class.java)
+        )
+    }
+
     /** The deadline cannot outlive the hangout: there would be nothing left to pay for. */
     @Test
     fun `refuses a deadline after the hangout itself`() {
@@ -152,6 +178,16 @@ class DeadlineDecisionJourneyTest : IntegrationTest() {
         assertEquals(PaymentState.AWAITING_HOST_DECISION, hangoutService.findPaymentState(paid.hangoutId))
 
         return paid
+    }
+
+    private fun moveDeadline(
+        host: TestAccount,
+        hangoutId: HangoutId,
+        newDeadline: Instant
+    ): ResultActionsDsl = mockMvc.patch("/api/payments/hangouts/$hangoutId/deadline") {
+        contentType = MediaType.APPLICATION_JSON
+        authenticatedAs(host)
+        content = """{"newDeadline":"$newDeadline"}"""
     }
 
     private fun decide(
