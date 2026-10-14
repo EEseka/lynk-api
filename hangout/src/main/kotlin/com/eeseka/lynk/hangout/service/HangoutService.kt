@@ -127,11 +127,8 @@ class HangoutService(
             throw HangoutIllegalStateException("Cannot update a ${hangoutEntity.status.name.lowercase()} hangout.")
         }
 
-        val hasNonHostPaid = hangoutEntity.participants.any {
-            it.hasPaid && it.hangoutUser.userId != hostId
-        }
-        if (hasNonHostPaid && spotId != hangoutEntity.chosenSpotId) {
-            throw HangoutIllegalStateException("The spot cannot change once someone has paid for it.")
+        if (hangoutEntity.payment != null && spotId != hangoutEntity.chosenSpotId) {
+            throw HangoutIllegalStateException("The spot can't change once payments are on.")
         }
 
         val paymentDeadline = hangoutEntity.payment?.deadline

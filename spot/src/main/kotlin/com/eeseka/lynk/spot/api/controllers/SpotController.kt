@@ -27,11 +27,9 @@ class SpotController(
     companion object {
         private const val DEFAULT_TRENDING_LIMIT = 20
         private const val DEFAULT_PAGE_SIZE = 20
-        private const val DEFAULT_SEARCH_RADIUS_IN_METERS = 5000
 
         private const val MAX_TRENDING_LIMIT = 20
         private const val MAX_PAGE_SIZE = 50
-        private const val MAX_SEARCH_RADIUS_METERS = 50_000
     }
 
     @GetMapping("/trending")
@@ -94,10 +92,6 @@ class SpotController(
         priceLevel: PriceLevel? = null,
 
         @RequestParam(required = false)
-        @Min(1) @Max(MAX_SEARCH_RADIUS_METERS.toLong())
-        radiusInMeters: Int = DEFAULT_SEARCH_RADIUS_IN_METERS,
-
-        @RequestParam(required = false)
         nextPageToken: String? = null
     ): PaginatedSpotsDto {
         return spotService.searchSpots(
@@ -106,7 +100,6 @@ class SpotController(
             query = query,
             category = category,
             priceLevel = priceLevel,
-            radiusInMeters = radiusInMeters,
             nextPageToken = nextPageToken,
             userId = requestUserId
         ).toPaginatedSpotsDto()

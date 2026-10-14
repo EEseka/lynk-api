@@ -354,6 +354,36 @@ class HangoutJourneyTest : IntegrationTest() {
         assertEquals(0, applicationEvents.stream(HangoutUpdatedEvent::class.java).count())
     }
 
+    /** The bill was set for this spot, so moving to another would charge people for the wrong place. */
+    @Test
+    fun `refuses to switch the spot once payments are on`() {
+        val paid = hangouts.withPaymentsOn(totalCostKobo = 1_000_000L)
+
+        editSpot(paid.host, paid.hangoutId, spotId = "ChIJotherspot")
+            .andExpect { status { isConflict() } }
+    }
+
+    /** Nobody can pay while voting is open, so the deadline would come with no way to pay. */
+    @Test
+    fun `refuses to reopen voting once payments are on`() {
+        val paid = hangouts.withPaymentsOn(totalCostKobo = 1_000_000L)
+
+        editSpot(paid.host, paid.hangoutId, spotId = null)
+            .andExpect { status { isConflict() } }
+
+        assertEquals(HangoutStatus.SCHEDULED, getHangout(paid.host, paid.hangoutId).status)
+    }
+
+    @Test
+    fun `still lets the host edit the rest once payments are on`() {
+        val paid = hangouts.withPaymentsOn(totalCostKobo = 1_000_000L)
+
+        editSpot(paid.host, paid.hangoutId, spotId = "ChIJtestspot", name = "Sunday suya")
+            .andExpect { status { isOk() } }
+
+        assertEquals("Sunday suya", getHangout(paid.host, paid.hangoutId).name)
+    }
+
     private fun signIn(username: String): TestAccount = accounts.signIn(
         email = "$username@lynk.test",
         displayName = username.replaceFirstChar { it.uppercase() },
@@ -370,7 +400,7 @@ class HangoutJourneyTest : IntegrationTest() {
 
     private fun postHangout(
         host: TestAccount,
-        // Linux clocks tick in nanoseconds but Postgres keeps microseconds, so a raw now() never round-trips
+        // Linux clocks tick in nanoseconds, but Postgres keeps microseconds, so a raw now() never round-trips
         scheduledAt: Instant = Instant.now().plus(Duration.ofDays(3)).truncatedTo(ChronoUnit.SECONDS),
         maxAttendees: Int? = null
     ): ResultActionsDsl = mockMvc.post("/api/hangouts") {
@@ -396,6 +426,30 @@ class HangoutJourneyTest : IntegrationTest() {
         return objectMapper.readValue(response, HangoutDto::class.java)
     }
 
+    // Everything else is sent back as it is, so the spot (and the name, when given) is the only change
+    private fun editSpot(
+        host: TestAccount,
+        hangoutId: HangoutId,
+        spotId: String?,
+        name: String? = null
+    ): ResultActionsDsl {
+        val hangout = getHangout(host, hangoutId)
+        return mockMvc.put("/api/hangouts/$hangoutId") {
+            contentType = MediaType.APPLICATION_JSON
+            authenticatedAs(host)
+            content = """
+                {
+                  "name": "${name ?: hangout.name}",
+                  "description": null,
+                  "vibe": "${hangout.vibe}",
+                  "scheduledAt": "${hangout.scheduledAt}",
+                  "maxAttendees": null,
+                  "spotId": ${spotId?.let { "\"$it\"" } ?: "null"}
+                }
+            """.trimIndent()
+        }
+    }
+
     private fun invite(host: TestAccount, hangoutId: HangoutId, invitee: TestAccount) =
         mockMvc.post("/api/hangouts/$hangoutId/participants") {
             contentType = MediaType.APPLICATION_JSON
@@ -403,7 +457,7 @@ class HangoutJourneyTest : IntegrationTest() {
             content = """{"userId":"${invitee.userId}"}"""
         }
 
-    // The start time moves into the past and the real sweep starts it, as it would on the server
+    // The start time moves into the past, and the real sweep starts it, as it would on the server
     private fun startHangout(hangoutId: HangoutId) {
         fixtures.moveScheduledAt(hangoutId, Instant.now().minus(Duration.ofMinutes(5)))
         hangoutService.transitionDueHangoutsToOngoing()

@@ -37,6 +37,7 @@ data class GooglePlace(
     val paymentOptions: GooglePaymentOptions?,
     val formattedAddress: String?,
     val shortFormattedAddress: String?,
+    val addressComponents: List<GoogleAddressComponent>?,
     val location: GoogleLocation?,
     val internationalPhoneNumber: String?,
     val websiteUri: String?,
@@ -105,6 +106,12 @@ data class GooglePaymentOptions(
     val acceptsDebitCards: Boolean?,
     val acceptsCashOnly: Boolean?,
     val acceptsNfc: Boolean?
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class GoogleAddressComponent(
+    val longText: String?,
+    val types: List<String>?
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

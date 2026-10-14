@@ -40,7 +40,6 @@ class SpotService(
         query: String?,
         category: SpotCategory?,
         priceLevel: PriceLevel?,
-        radiusInMeters: Int,
         nextPageToken: String?,
         userId: UserId
     ): PaginatedSpots {
@@ -50,7 +49,6 @@ class SpotService(
             query = query,
             category = category,
             priceLevel = priceLevel,
-            radiusInMeters = radiusInMeters,
             nextPageToken = nextPageToken
         )
         val enrichedSpots = enrichWithSavedState(rawSpots, userId)
