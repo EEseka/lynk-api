@@ -17,4 +17,5 @@ object HangoutEventConstants {
     const val HANGOUT_PHOTOS_ADDED_KEY = "hangout.photos_added"
     const val HANGOUT_PAYMENT_RECEIVED_KEY = "hangout.payment_received"
     const val HANGOUT_REFUND_ISSUED_KEY = "hangout.refund_issued"
+    const val HANGOUT_ABANDONED_DELETED_KEY = "hangout.abandoned_deleted"
 }

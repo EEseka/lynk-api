@@ -1,5 +1,6 @@
 package com.eeseka.lynk.common.api.config
 
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import java.util.concurrent.TimeUnit
 
 annotation class UserRateLimit(

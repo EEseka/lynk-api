@@ -3,7 +3,7 @@ package com.eeseka.lynk.user.api.controllers
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.common.api.config.AllowGuest
 import com.eeseka.lynk.common.api.config.IpRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.user.api.dto.AuthenticatedUserDto
 import com.eeseka.lynk.user.api.dto.GoogleLoginRequest
 import com.eeseka.lynk.user.api.dto.RefreshRequest

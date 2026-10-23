@@ -1,7 +1,6 @@
 package com.eeseka.lynk.spot.infra.google_places.dto
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import java.time.Instant
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GooglePlacesSearchResponse(
@@ -27,6 +26,7 @@ data class GooglePlace(
     val businessStatus: String?,
     val currentOpeningHours: GoogleOpeningHours?,
     val utcOffsetMinutes: Int?,
+    val timeZone: GoogleTimeZone?,
     val goodForGroups: Boolean?,
     val reservable: Boolean?,
     val liveMusic: Boolean?,
@@ -83,10 +83,26 @@ data class GoogleMoney(
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GoogleOpeningHours(
-    val openNow: Boolean?,
     val weekdayDescriptions: List<String>?,
-    val nextOpenTime: Instant?,
-    val nextCloseTime: Instant?
+    val periods: List<GoogleOpeningPeriod>?
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class GoogleTimeZone(
+    val id: String? // IANA, e.g. "Europe/London"
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class GoogleOpeningPeriod(
+    val open: GoogleOpeningPoint?,
+    val close: GoogleOpeningPoint?
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class GoogleOpeningPoint(
+    val day: Int?, // 0 is Sunday
+    val hour: Int?,
+    val minute: Int?
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)

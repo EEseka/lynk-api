@@ -879,6 +879,8 @@ class HangoutService(
 
         hangoutRepository.deleteAll(abandoned)
 
+        eventPublisher.publish(HangoutEvent.AbandonedHangoutsDeleted(hangoutIds = abandoned.map { it.id!! }))
+
         logger.info("Deleted {} hangouts nobody ever joined", abandoned.size)
     }
 

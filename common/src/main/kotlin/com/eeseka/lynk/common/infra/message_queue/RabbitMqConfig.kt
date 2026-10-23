@@ -3,6 +3,8 @@ package com.eeseka.lynk.common.infra.message_queue
 import com.eeseka.lynk.common.domain.events.LynkEvent
 import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.events.hangout.HangoutEventConstants
+import com.eeseka.lynk.common.domain.events.spot.SpotEvent
+import com.eeseka.lynk.common.domain.events.spot.SpotEventConstants
 import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.domain.events.user.UserEventConstants
 import org.springframework.amqp.core.Binding
@@ -42,7 +44,8 @@ class RabbitMqConfig {
         return JacksonJsonMessageConverter(
             objectMapper,
             UserEvent::class.java.packageName,
-            HangoutEvent::class.java.packageName
+            HangoutEvent::class.java.packageName,
+            SpotEvent::class.java.packageName
         ).apply {
             typePrecedence = JacksonJavaTypeMapper.TypePrecedence.TYPE_ID
         }
@@ -68,6 +71,13 @@ class RabbitMqConfig {
     @Bean
     fun hangoutExchange() = TopicExchange(
         HangoutEventConstants.HANGOUT_EXCHANGE,
+        true,
+        false
+    )
+
+    @Bean
+    fun spotExchange() = TopicExchange(
+        SpotEventConstants.SPOT_EXCHANGE,
         true,
         false
     )
@@ -99,6 +109,24 @@ class RabbitMqConfig {
     @Bean
     fun paymentHangoutEventsQueue() = Queue(
         MessageQueues.PAYMENT_HANGOUT_EVENTS,
+        true
+    )
+
+    @Bean
+    fun assistantUserEventsQueue() = Queue(
+        MessageQueues.ASSISTANT_USER_EVENTS,
+        true
+    )
+
+    @Bean
+    fun assistantHangoutEventsQueue() = Queue(
+        MessageQueues.ASSISTANT_HANGOUT_EVENTS,
+        true
+    )
+
+    @Bean
+    fun assistantSpotEventsQueue() = Queue(
+        MessageQueues.ASSISTANT_SPOT_EVENTS,
         true
     )
 
@@ -155,5 +183,38 @@ class RabbitMqConfig {
             .bind(paymentHangoutEventsQueue)
             .to(hangoutExchange)
             .with("hangout.*")
+    }
+
+    @Bean
+    fun assistantUserEventsBinding(
+        assistantUserEventsQueue: Queue,
+        userExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(assistantUserEventsQueue)
+            .to(userExchange)
+            .with("user.*")
+    }
+
+    @Bean
+    fun assistantHangoutEventsBinding(
+        assistantHangoutEventsQueue: Queue,
+        hangoutExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(assistantHangoutEventsQueue)
+            .to(hangoutExchange)
+            .with("hangout.*")
+    }
+
+    @Bean
+    fun assistantSpotEventsBinding(
+        assistantSpotEventsQueue: Queue,
+        spotExchange: TopicExchange,
+    ): Binding {
+        return BindingBuilder
+            .bind(assistantSpotEventsQueue)
+            .to(spotExchange)
+            .with("spot.*")
     }
 }

@@ -18,6 +18,8 @@ dependencies {
 
     implementation(libs.spring.boot.starter.amqp)
 
+    implementation(libs.spring.boot.starter.data.redis)
+
     implementation(libs.jwt.api)
     runtimeOnly(libs.jwt.impl)
     runtimeOnly(libs.jwt.jackson)

@@ -108,6 +108,12 @@ paystack:
   url: "https://api.paystack.co"
   secret-key: ${PAYSTACK_SECRET_KEY}
 
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY}
+
+assistant:
+  disabled: ${ASSISTANT_DISABLED:false}
+
 bank-logo:
   nigerian-banks-url: "https://nigerianbanks.xyz"
   supermx-url: "https://supermx1.github.io/nigerian-banks-api"

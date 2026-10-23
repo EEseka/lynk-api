@@ -1,5 +1,6 @@
 package com.eeseka.lynk.support
 
+import com.eeseka.lynk.common.domain.type.AssistantMessageId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.HangoutPhotoId
 import com.eeseka.lynk.common.domain.type.UserId
@@ -219,6 +220,15 @@ class TestFixtures(
             "UPDATE user_service.refresh_tokens SET expires_at = ? WHERE user_id = ?",
             Timestamp.from(expiresAt),
             userId
+        )
+    }
+
+    /** Ages an assistant answer, for the sweep that fails answers stuck in PENDING. */
+    fun ageAssistantMessage(messageId: AssistantMessageId, createdAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE assistant_service.assistant_messages SET created_at = ? WHERE id = ?",
+            Timestamp.from(createdAt),
+            messageId
         )
     }
 

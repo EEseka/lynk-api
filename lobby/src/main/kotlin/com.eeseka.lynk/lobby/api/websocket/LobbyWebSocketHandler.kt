@@ -12,9 +12,11 @@ import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessage
 import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessageType
 import com.eeseka.lynk.lobby.api.dto.ws.inbound.*
 import com.eeseka.lynk.lobby.api.dto.ws.outbound.*
+import com.eeseka.lynk.lobby.api.mappers.toVotingSnapshotDto
 import com.eeseka.lynk.lobby.api.websocket.LobbyHandshakeInterceptor.Companion.USER_ID_ATTRIBUTE
+import com.eeseka.lynk.lobby.domain.model.ProposeOutcome
+import com.eeseka.lynk.lobby.service.LobbyVotingService
 import com.eeseka.lynk.spot.api.mappers.toSpotDto
-import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.service.SpotService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -22,6 +24,7 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
 import org.springframework.web.socket.*
+import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator
 import org.springframework.web.socket.handler.TextWebSocketHandler
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
@@ -35,13 +38,15 @@ class LobbyWebSocketHandler(
     private val hangoutParticipantService: HangoutParticipantService,
     private val spotService: SpotService,
     private val hangoutService: HangoutService,
+    private val lobbyVotingService: LobbyVotingService,
     private val objectMapper: ObjectMapper
 ) : TextWebSocketHandler() {
 
     companion object {
         private const val PING_INTERVAL_MS = 30_000L
         private const val PONG_TIMEOUT_MS = 60_000L
-        private const val MAX_CANDIDATES = 10
+        private const val SEND_TIME_LIMIT_MS = 10_000
+        private const val SEND_BUFFER_LIMIT_BYTES = 512 * 1024
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -56,10 +61,6 @@ class LobbyWebSocketHandler(
     private val sessionViewing = ConcurrentHashMap<String, HangoutId>()
     private val hangoutViewers = ConcurrentHashMap<HangoutId, MutableSet<String>>()
 
-    private val hangoutCandidates = ConcurrentHashMap<HangoutId, LinkedHashMap<String, Spot>>()
-    private val hangoutVotes = ConcurrentHashMap<HangoutId, MutableMap<UserId, String>>()
-    private val hangoutLocations = ConcurrentHashMap<HangoutId, MutableMap<UserId, Coordinates>>()
-
     override fun afterConnectionEstablished(session: WebSocketSession) {
 
         val userId = session.attributes[USER_ID_ATTRIBUTE] as? UserId ?: run {
@@ -68,7 +69,10 @@ class LobbyWebSocketHandler(
             return
         }
 
-        val userSession = UserSession(userId = userId, session = session)
+        val userSession = UserSession(
+            userId = userId,
+            session = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, SEND_BUFFER_LIMIT_BYTES)
+        )
 
         connectionLock.write {
             sessions[session.id] = userSession
@@ -533,18 +537,14 @@ class LobbyWebSocketHandler(
     // Remove a leaving user's sockets from this hangout and take their ballot and pin with them.
     private fun unsubscribeUserFromHangout(userId: UserId, hangoutId: HangoutId) {
         var wasViewing = false
-        var votesSnapshot: Map<UserId, String>? = null
-        var locationDropped = false
+
+        // Someone out of the hangout gets no say in where it happens, and their pin no
+        // longer belongs in the group center. Done before the socket check below, because they
+        // may well have left over REST with the app closed and no session left to unwire.
+        val votesSnapshot = lobbyVotingService.removeVote(hangoutId, userId)
+        val locationDropped = lobbyVotingService.removeLocation(hangoutId, userId)
 
         connectionLock.write {
-            // Someone out of the hangout gets no say in where it happens, and their pin no
-            // longer belongs in the group center. Done before the socket check below, because they
-            // may well have left over REST with the app closed and no session left to unwire.
-            hangoutVotes[hangoutId]?.let { votes ->
-                if (votes.remove(userId) != null) votesSnapshot = HashMap(votes)
-            }
-            locationDropped = hangoutLocations[hangoutId]?.remove(userId) != null
-
             val sessionIds = userToSessions[userId] ?: return@write
             userHangoutIds.compute(userId) { _, ids ->
                 ids?.apply { remove(hangoutId) }?.takeIf { it.isNotEmpty() }
@@ -578,7 +578,7 @@ class LobbyWebSocketHandler(
             )
         }
         if (locationDropped) {
-            computeCenter(hangoutId)?.let { center ->
+            getCenterUpdate(hangoutId)?.let { center ->
                 broadcastToHangout(
                     hangoutId = hangoutId,
                     message = OutgoingWebSocketMessage(
@@ -602,7 +602,7 @@ class LobbyWebSocketHandler(
             hangoutViewers.remove(hangoutId)
             sessionViewing.values.removeIf { it == hangoutId }
         }
-        clearVotingState(hangoutId)
+        lobbyVotingService.clearVotingState(hangoutId)
     }
 
     // Nominate a spot as a voting candidate: fetch its details, dedupe, cap, broadcast.
@@ -624,19 +624,7 @@ class LobbyWebSocketHandler(
             return
         }
 
-        val outcome = connectionLock.write {
-            val candidates = hangoutCandidates.getOrPut(hangoutId) { LinkedHashMap() }
-            when {
-                candidates.containsKey(spotId) -> ProposeOutcome.DUPLICATE
-                candidates.size >= MAX_CANDIDATES -> ProposeOutcome.FULL
-                else -> {
-                    candidates[spotId] = spot
-                    ProposeOutcome.ADDED
-                }
-            }
-        }
-
-        when (outcome) {
+        when (lobbyVotingService.proposeSpot(hangoutId, spotId, spot)) {
             ProposeOutcome.ADDED -> broadcastToHangout(
                 hangoutId = hangoutId,
                 message = OutgoingWebSocketMessage(
@@ -668,13 +656,7 @@ class LobbyWebSocketHandler(
             return
         }
 
-        val votesSnapshot = connectionLock.write {
-            // Not on the ballot: nothing to remove.
-            if (hangoutCandidates[hangoutId]?.remove(spotId) == null) return@write null
-            val votes = hangoutVotes[hangoutId]
-            votes?.values?.removeAll { it == spotId } // drop orphaned votes for the removed spot
-            votes?.let { HashMap(it) } ?: emptyMap<UserId, String>()
-        }
+        val votesSnapshot = lobbyVotingService.removeCandidate(hangoutId, spotId)
 
         if (votesSnapshot == null) {
             sendError(userSession.session, ErrorDto("NOT_A_CANDIDATE", "That spot isn't on the ballot"))
@@ -709,13 +691,7 @@ class LobbyWebSocketHandler(
             return
         }
 
-        val votesSnapshot = connectionLock.write {
-            // You can only vote for a spot that's actually a candidate.
-            if (hangoutCandidates[hangoutId]?.containsKey(spotId) != true) return@write null
-            val votes = hangoutVotes.getOrPut(hangoutId) { mutableMapOf() }
-            votes[userSession.userId] = spotId // overwrites any previous vote (changeable)
-            HashMap(votes) // copy to broadcast outside the lock
-        }
+        val votesSnapshot = lobbyVotingService.castVote(hangoutId, userSession.userId, spotId)
 
         if (votesSnapshot == null) {
             sendError(userSession.session, ErrorDto("NOT_A_CANDIDATE", "That spot isn't up for voting"))
@@ -745,17 +721,7 @@ class LobbyWebSocketHandler(
             return
         }
 
-        // Who's winning? The spotId(s) with the most votes.
-        val leaders = connectionLock.read {
-            val picks = hangoutVotes[hangoutId]?.values ?: emptyList()
-            if (picks.isEmpty()) {
-                emptySet()
-            } else {
-                val counts = picks.groupingBy { it }.eachCount()
-                val topCount = counts.values.max()
-                counts.filterValues { it == topCount }.keys.toSet()
-            }
-        }
+        val leaders = lobbyVotingService.findLeaders(hangoutId)
 
         if (leaders.isEmpty()) {
             sendError(userSession.session, ErrorDto("NO_VOTES", "No votes have been cast yet"))
@@ -795,16 +761,8 @@ class LobbyWebSocketHandler(
             sendError(userSession.session, ErrorDto("LOCK_FAILED", "Could not lock the spot; please try again"))
             return
         }
-        clearVotingState(hangoutId)
-    }
-
-    // Voting is over for this hangout: drop the in-memory ballot (the lobby lives on).
-    private fun clearVotingState(hangoutId: HangoutId) {
-        connectionLock.write {
-            hangoutCandidates.remove(hangoutId)
-            hangoutVotes.remove(hangoutId)
-            hangoutLocations.remove(hangoutId)
-        }
+        // Voting is over for this hangout: drop the in-memory ballot (the lobby lives on).
+        lobbyVotingService.clearVotingState(hangoutId)
     }
 
     // Store an attendee's one-off location and re-broadcast the averaged group center.
@@ -823,12 +781,9 @@ class LobbyWebSocketHandler(
             return
         }
 
-        connectionLock.write {
-            hangoutLocations.getOrPut(hangoutId) { mutableMapOf() }[userSession.userId] =
-                Coordinates(latitude, longitude)
-        }
+        lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
 
-        val center = computeCenter(hangoutId) ?: return
+        val center = getCenterUpdate(hangoutId) ?: return
         broadcastToHangout(
             hangoutId = hangoutId,
             message = OutgoingWebSocketMessage(
@@ -883,44 +838,26 @@ class LobbyWebSocketHandler(
 
     // Send the whole ballot to a single joiner so they see exactly what everyone already in the lobby sees.
     private fun sendVotingSnapshot(userSession: UserSession, hangoutId: HangoutId) {
-        val candidates: List<Spot>
-        val votes: Map<UserId, String>
-        connectionLock.read {
-            candidates = hangoutCandidates[hangoutId]?.values?.toList() ?: emptyList()
-            votes = hangoutVotes[hangoutId]?.let { HashMap(it) } ?: emptyMap()
-        }
-        val center = computeCenter(hangoutId)
+        val votingSnapshot = lobbyVotingService.getVotingSnapshot(hangoutId)
 
         sendJson(
             userSession = userSession,
             messageJson = objectMapper.writeValueAsString(
                 OutgoingWebSocketMessage(
                     type = OutgoingWebSocketMessageType.VOTING_SNAPSHOT,
-                    payload = objectMapper.writeValueAsString(
-                        VotingSnapshotDto(
-                            hangoutId = hangoutId,
-                            candidates = candidates.map { it.toSpotDto() },
-                            votes = votes,
-                            latitude = center?.latitude,
-                            longitude = center?.longitude
-                        )
-                    )
+                    payload = objectMapper.writeValueAsString(votingSnapshot.toVotingSnapshotDto())
                 )
             )
         )
     }
 
-    // Average of every shared location for this hangout, or null if none shared yet.
-    private fun computeCenter(hangoutId: HangoutId): CenterUpdateDto? {
-        val coordinates = connectionLock.read {
-            hangoutLocations[hangoutId]?.values?.toList()
-        } ?: return null
-        if (coordinates.isEmpty()) return null
+    private fun getCenterUpdate(hangoutId: HangoutId): CenterUpdateDto? {
+        val center = lobbyVotingService.getCenter(hangoutId) ?: return null
 
         return CenterUpdateDto(
             hangoutId = hangoutId,
-            latitude = coordinates.map { it.latitude }.average(),
-            longitude = coordinates.map { it.longitude }.average()
+            latitude = center.latitude,
+            longitude = center.longitude
         )
     }
 
@@ -1018,11 +955,4 @@ class LobbyWebSocketHandler(
         val session: WebSocketSession,
         val lastPongTimestamp: Long = System.currentTimeMillis()
     )
-
-    private data class Coordinates(
-        val latitude: Double,
-        val longitude: Double
-    )
-
-    private enum class ProposeOutcome { ADDED, DUPLICATE, FULL }
 }

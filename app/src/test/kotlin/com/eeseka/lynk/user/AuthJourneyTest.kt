@@ -78,7 +78,7 @@ class AuthJourneyTest : IntegrationTest() {
     fun `turns away a Google token Google will not vouch for`() {
         val apiKey = accounts.newApiKey()
         willThrow(InvalidTokenException("Failed to verify Google Token"))
-            .given(googleAuthService).verify(anyString())
+            .given(googleAuthClient).verify(anyString())
 
         mockMvc.post("/api/auth/google") {
             contentType = MediaType.APPLICATION_JSON

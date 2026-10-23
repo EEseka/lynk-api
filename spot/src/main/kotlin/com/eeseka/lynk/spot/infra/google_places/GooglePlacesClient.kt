@@ -27,7 +27,7 @@ class GooglePlacesClient(
     private val placeFields = listOf(
         "id", "displayName", "primaryTypeDisplayName", "editorialSummary", "generativeSummary", "reviewSummary",
         "photos", "primaryType", "types", "priceLevel", "priceRange", "rating", "userRatingCount",
-        "businessStatus", "currentOpeningHours", "utcOffsetMinutes",
+        "businessStatus", "currentOpeningHours", "utcOffsetMinutes", "timeZone",
         "goodForGroups", "reservable", "liveMusic", "outdoorSeating", "servesCocktails", "goodForWatchingSports",
         "parkingOptions", "paymentOptions",
         "formattedAddress", "shortFormattedAddress", "location",
@@ -77,8 +77,8 @@ class GooglePlacesClient(
     }
 
     fun searchSpots(
-        latitude: Double,
-        longitude: Double,
+        latitude: Double?,
+        longitude: Double?,
         query: String?,
         category: SpotCategory?,
         priceLevel: PriceLevel?,
@@ -96,16 +96,19 @@ class GooglePlacesClient(
             else -> "places to visit"
         }
 
-        val body = mutableMapOf(
+        val body = mutableMapOf<String, Any>(
             "textQuery" to actualQuery,
-            "pageSize" to 20,
-            "locationBias" to mapOf(
+            "pageSize" to 20
+        )
+
+        if (latitude != null && longitude != null) {
+            body["locationBias"] = mapOf(
                 "circle" to mapOf(
                     "center" to mapOf("latitude" to latitude, "longitude" to longitude),
                     "radius" to SEARCH_RADIUS_METERS
                 )
             )
-        )
+        }
 
         normalizedNextPageToken?.let { body["pageToken"] = it }
 

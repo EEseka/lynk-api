@@ -53,6 +53,7 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PhotosAdded -> onPhotosAdded(event)
                 is HangoutEvent.PaymentReceived -> onPaymentReceived(event)
                 is HangoutEvent.RefundIssued -> onRefundIssued(event)
+                is HangoutEvent.AbandonedHangoutsDeleted -> Unit
             }
         } catch (e: Exception) {
             logger.error("Could not handle ${event.eventKey} for hangout event ${event.eventId}", e)

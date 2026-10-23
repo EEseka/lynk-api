@@ -34,7 +34,8 @@ class CommonExceptionHandler {
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     fun onRateLimitExceeded(e: RateLimitException) = mapOf(
         "code" to "RATE_LIMIT_EXCEEDED",
-        "message" to e.message
+        "message" to e.message,
+        "resetsInSeconds" to e.resetsInSeconds
     )
 
     @ExceptionHandler(RateLimiterUnavailableException::class)

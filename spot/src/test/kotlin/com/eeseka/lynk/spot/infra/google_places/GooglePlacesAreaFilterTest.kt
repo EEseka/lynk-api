@@ -76,6 +76,7 @@ class GooglePlacesAreaFilterTest {
         businessStatus = null,
         currentOpeningHours = null,
         utcOffsetMinutes = null,
+        timeZone = null,
         goodForGroups = null,
         reservable = null,
         liveMusic = null,

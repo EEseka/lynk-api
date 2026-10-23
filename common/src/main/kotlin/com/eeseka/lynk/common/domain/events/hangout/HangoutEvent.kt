@@ -139,4 +139,9 @@ sealed class HangoutEvent(
         val reference: String,
         override val eventKey: String = HangoutEventConstants.HANGOUT_REFUND_ISSUED_KEY
     ) : HangoutEvent(), LynkEvent
+
+    data class AbandonedHangoutsDeleted(
+        val hangoutIds: List<HangoutId>,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_ABANDONED_DELETED_KEY
+    ) : HangoutEvent(), LynkEvent
 }

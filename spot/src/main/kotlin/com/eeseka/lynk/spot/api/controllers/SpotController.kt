@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
 import com.eeseka.lynk.spot.api.mappers.toPaginatedSpotsDto
@@ -32,6 +32,12 @@ class SpotController(
         private const val MAX_PAGE_SIZE = 50
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/trending")
     fun getTrendingSpots(
         @RequestParam
@@ -54,6 +60,12 @@ class SpotController(
         ).map { it.toSpotDto() }
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/top")
     fun getTopSpots(
         @RequestParam
@@ -105,6 +117,12 @@ class SpotController(
         ).toPaginatedSpotsDto()
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/{spotId}")
     fun getSpotById(
         @PathVariable spotId: String
@@ -115,6 +133,12 @@ class SpotController(
         ).toSpotDto()
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @PostMapping("/{spotId}/save")
     @ResponseStatus(HttpStatus.CREATED)
     fun saveSpot(
