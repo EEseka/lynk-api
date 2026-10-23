@@ -180,6 +180,7 @@ class HangoutService(
                 this.scheduledAt = scheduledAt
                 this.maxAttendees = maxAttendees
                 this.chosenSpotId = spotId
+                if (HangoutChangeKind.SCHEDULE_CHANGED in changes) this.spotRemindersSent = 0
             }
         ).toHangout()
 
@@ -868,6 +869,54 @@ class HangoutService(
 
             logger.info("Reminded {} hosts to finish hangouts still going after {} days", dueHangouts.size, days)
         }
+    }
+
+    @Scheduled(fixedDelay = 15 * 60 * 1000)
+    @Transactional
+    fun remindHostsToPickSpots() {
+        val now = Instant.now()
+
+        val startedHangouts = hangoutRepository.findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
+            status = HangoutStatus.VOTING,
+            remindersSent = 2,
+            cutoff = now
+        )
+        if (startedHangouts.isNotEmpty()) {
+            hangoutRepository.markSpotRemindersSent(ids = startedHangouts.map { it.id!! }, remindersSent = 2)
+            startedHangouts.forEach { hangout ->
+                eventPublisher.publish(
+                    HangoutEvent.HangoutSpotReminder(
+                        hangoutId = hangout.id!!,
+                        hangoutName = hangout.name,
+                        hostId = hangout.hostId,
+                        hasStarted = true
+                    )
+                )
+            }
+            logger.info("Reminded {} hosts that a hangout started with no spot", startedHangouts.size)
+        }
+
+        val startingHangouts = hangoutRepository.findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
+            status = HangoutStatus.VOTING,
+            remindersSent = 1,
+            cutoff = now.plus(1, ChronoUnit.DAYS)
+        )
+        if (startingHangouts.isEmpty()) return
+
+        hangoutRepository.markSpotRemindersSent(ids = startingHangouts.map { it.id!! }, remindersSent = 1)
+        // A hangout made less than a day before it starts is still being planned, so its host is left alone
+        val plannedAhead = startingHangouts.filter { it.createdAt.isBefore(it.scheduledAt.minus(1, ChronoUnit.DAYS)) }
+        plannedAhead.forEach { hangout ->
+            eventPublisher.publish(
+                HangoutEvent.HangoutSpotReminder(
+                    hangoutId = hangout.id!!,
+                    hangoutName = hangout.name,
+                    hostId = hangout.hostId,
+                    hasStarted = false
+                )
+            )
+        }
+        logger.info("Reminded {} hosts that a hangout starts within a day with no spot", plannedAhead.size)
     }
 
     @Scheduled(cron = "0 0 3 * * *")

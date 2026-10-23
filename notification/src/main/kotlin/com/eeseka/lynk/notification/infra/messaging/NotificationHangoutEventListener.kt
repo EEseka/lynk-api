@@ -50,6 +50,7 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PaymentDeadlineChanged -> onPaymentDeadlineChanged(event)
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
                 is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
+                is HangoutEvent.HangoutSpotReminder -> onHangoutSpotReminder(event)
                 is HangoutEvent.PhotosAdded -> onPhotosAdded(event)
                 is HangoutEvent.PaymentReceived -> onPaymentReceived(event)
                 is HangoutEvent.RefundIssued -> onRefundIssued(event)
@@ -263,6 +264,20 @@ class NotificationHangoutEventListener(
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
             message = "Did it end? Mark it complete to open the album"
+        )
+    }
+
+    private fun onHangoutSpotReminder(event: HangoutEvent.HangoutSpotReminder) {
+        notify(
+            recipientIds = setOf(event.hostId),
+            type = if (event.hasStarted) NotificationType.SPOT_REMINDER_AFTER_START else NotificationType.SPOT_REMINDER_BEFORE_START,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            message = if (event.hasStarted) {
+                "It was meant to start but has no spot yet. Pick one, move the date or cancel it"
+            } else {
+                "It starts in less than a day and still has no spot. Pick one or move the date"
+            }
         )
     }
 

@@ -179,6 +179,28 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     """)
     fun markCompletionRemindersSent(ids: Collection<HangoutId>, remindersSent: Int)
 
+    @Query("""
+        SELECT h
+        FROM HangoutEntity h
+        WHERE h.status = :status
+        AND h.spotRemindersSent < :remindersSent
+        AND h.scheduledAt < :cutoff
+    """)
+    fun findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
+        status: HangoutStatus,
+        remindersSent: Int,
+        cutoff: Instant
+    ): List<HangoutEntity>
+
+    // Bulk updates skip the version check, so this one bumps the version by hand
+    @Modifying
+    @Query("""
+        UPDATE HangoutEntity h
+        SET h.spotRemindersSent = :remindersSent, h.version = h.version + 1
+        WHERE h.id IN :ids
+    """)
+    fun markSpotRemindersSent(ids: Collection<HangoutId>, remindersSent: Int)
+
     // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
     @Query("""
         SELECT h FROM HangoutEntity h

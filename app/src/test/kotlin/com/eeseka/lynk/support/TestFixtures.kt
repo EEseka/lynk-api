@@ -196,6 +196,15 @@ class TestFixtures(
         )
     }
 
+    /** Ages a hangout, so it reads as planned well before its date. */
+    fun ageHangout(hangoutId: HangoutId, createdAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE hangout_service.hangouts SET created_at = ? WHERE id = ?",
+            Timestamp.from(createdAt),
+            hangoutId
+        )
+    }
+
     /** Ages a photo for the sweep that clears uploads nobody finished. */
     fun agePhoto(photoId: HangoutPhotoId, createdAt: Instant) {
         jdbcTemplate.update(
