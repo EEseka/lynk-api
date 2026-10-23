@@ -16,9 +16,11 @@ client for Android and iOS.
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | **Auth**          | Google Sign-In and guest accounts, JWT with rotating refresh tokens, plus an API key on every request                                   |
 | **Hangouts**      | Create, edit, cancel, look a friend up by username and invite them, RSVP, attendee limits where a pending invite already holds the slot |
-| **Spots**         | Search and trending places from Google Places, Redis-cached, saved spots per user                                                       |
+| **Spots**         | Search, trending and a Top 10 from Google Places, weekly opening hours, Redis-cached, saved spots per user                              |
+| **Lynk AI**       | A Claude spot helper over Server-Sent Events, searching real places with tools, for Discover and for a hangout while it is voting       |
 | **Live lobby**    | Raw WebSockets: presence, spot proposals, live vote tallies, host tie-break                                                             |
 | **Payments**      | Paystack bill-splitting: per-share charges, deadlines, host payouts, automatic refunds                                                  |
+| **Albums**        | A private photo album per finished hangout, uploaded straight to Supabase Storage through signed links                                  |
 | **Notifications** | Firebase push, an in-app inbox, and transactional email through Brevo                                                                   |
 
 ## Architecture
@@ -41,18 +43,20 @@ flowchart TB
             LOBBY[lobby]
             PAYMENT[payment]
             NOTIF[notification]
+            ASSISTANT[assistant]
         end
-        SWEEPS["16 scheduled sweeps<br/>deadlines, payouts, refunds"]
+        SWEEPS["Scheduled sweeps<br/>deadlines, payouts, refunds, reminders"]
     end
 
     RABBIT{{"RabbitMQ<br/>cross-module events"}}
-    PG[("PostgreSQL<br/>5 schemas, Flyway")]
-    REDIS[("Redis<br/>cache, rate limits")]
+    PG[("PostgreSQL<br/>one schema per module, Flyway")]
+    REDIS[("Redis<br/>cache, rate limits, Discover chats")]
     PLACES["Google Places"]
     PAYSTACK["Paystack"]
     FCM["Firebase"]
     BREVO["Brevo"]
     STORAGE["Supabase Storage"]
+    CLAUDE["Anthropic Claude"]
     APP -->|REST| EDGE
     APP -->|WebSocket| EDGE
     PS_HOOK -->|signed| EDGE
@@ -69,6 +73,10 @@ flowchart TB
     NOTIF --> FCM
     NOTIF --> BREVO
     USER --> STORAGE
+    HANGOUT --> STORAGE
+    ASSISTANT --> CLAUDE
+    ASSISTANT --> PLACES
+    ASSISTANT --> REDIS
 ```
 
 Modules never share tables. `hangout` learns a person exists because `user` published an event, not because it can read
@@ -125,29 +133,30 @@ to attach it to.
 
 ### Modules
 
-Eight Gradle modules. `app` is the only Spring Boot application; everything else is a library module that owns its slice
-of the domain and exposes nothing but its service layer.
+`app` is the only Spring Boot application; every other Gradle module is a library that owns its slice of the domain and
+exposes nothing but its service layer.
 
 ```
 app            Spring Boot entry point, security, rate limiting, scheduling, Flyway migrations
 common         shared types, events, JWT, exception handling, RabbitMQ plumbing
 user           auth, profiles, API keys, Supabase Storage
-hangout        hangouts, participants, invites, RSVP, the payment state machine
-spot           Google Places integration, trending cache, saved spots
+hangout        hangouts, participants, invites, RSVP, albums, the payment state machine
+spot           Google Places integration, trending and Top 10 cache, saved spots
 lobby          raw WebSocket lobby, presence, voting
 payment        Paystack charges, webhooks, payouts, refunds, reconciliation
 notification   FCM push, inbox rows, Thymeleaf email
+assistant      Lynk AI: the Claude tool loop, chats, daily limits, SSE streaming
 ```
 
 Modules never reach into each other's tables. They talk through **RabbitMQ events** and a small set of shared types in
-`common`. Each owns a separate Postgres schema: `user_service`,
-`hangout_service`, `spot_service`, `payment_service`, `notification_service`.
+`common`. Each owns a separate Postgres schema: `user_service`, `hangout_service`, `spot_service`, `payment_service`,
+`notification_service`, `assistant_service`.
 
 ### Things worth a closer look
 
 **A payment lifecycle that survives failure.** Charges are confirmed by a signature-verified Paystack webhook, not by
-trusting the client. Sixteen scheduled sweeps resolve deadlines, chase stuck payments, retry failed payouts, and
-reconcile against the provider. A pessimistic lock plus a partial unique index on
+trusting the client. Scheduled sweeps resolve deadlines, chase stuck payments, retry failed payouts, and reconcile
+against the provider. A pessimistic lock plus a partial unique index on
 `WHERE status = 'SUCCESS' AND refund_status = 'NONE'` makes double-charging impossible even when a webhook is delivered
 twice.
 
@@ -161,19 +170,21 @@ per-IP and per-user rate limiting in Redis, and account-deletion guards that ref
 ## Tech
 
 **Kotlin 2.4** · **Spring Boot 4.0** · **Java 21** · PostgreSQL 17 (Supabase) · Flyway · Redis · RabbitMQ · raw
-WebSockets · Paystack · Firebase Cloud Messaging · Brevo · Supabase Storage · Testcontainers · Docker · Railway
+WebSockets · Server-Sent Events · Anthropic Claude via Koog · Paystack · Firebase Cloud Messaging · Brevo · Supabase
+Storage · Testcontainers · Docker · Railway
 
 ## Testing
 
-**202 tests**, ~4,500 lines, run against **real PostgreSQL in Testcontainers**, using the same migrations and the same
-schema production uses. External services are replaced with mocks; nothing else is.
+The tests run against **real PostgreSQL in Testcontainers**, using the same migrations and the same schema production
+uses. External services are replaced with mocks; nothing else is.
 
 ```
-Unit                  money arithmetic, webhook signatures, state transitions
-REST journeys         auth, hangouts, participants, spots, profile, notifications
-Scheduled sweeps      all 16, invoked directly, since no endpoint can reach them
+Unit                  money arithmetic, webhook signatures, state transitions, opening hours
+REST journeys         auth, hangouts, participants, spots, profile, albums, notifications
+Scheduled sweeps      every one, invoked directly, since no endpoint can reach them
 Payment webhook       a signed Paystack callback driving the full state machine
-Email                 all 13 template branches rendered
+Lynk AI               a scripted stand-in for Claude driving the whole tool loop and answer stream
+Email                 every template branch rendered
 ```
 
 Writing them found five production bugs, including one where every webhook-triggered refund silently failed because the
@@ -205,33 +216,34 @@ every secret arrives from the environment. Nothing sensitive is in the repositor
 |                                                        |                                  |
 |--------------------------------------------------------|----------------------------------|
 | `POSTGRES_PASSWORD` `DATABASE_URL` `DATABASE_USERNAME` | Postgres                         |
-| `SUPABASE_SERVICE_KEY`                                 | profile picture storage          |
+| `SUPABASE_SERVICE_KEY`                                 | profile photo and album storage  |
 | `REDIS_PASSWORD` `RABBITMQ_PASSWORD`                   | cache and message queue          |
 | `JWT_SECRET_BASE64` `ADMIN_USERNAME` `ADMIN_PASSWORD`  | auth                             |
 | `GOOGLE_CLIENT_ID` `GOOGLE_PLACES_KEY`                 | Google Sign-In and Places        |
 | `PAYSTACK_SECRET_KEY`                                  | payments                         |
 | `BREVO_API_KEY`                                        | email, over Brevo's HTTP API     |
+| `ANTHROPIC_API_KEY`                                    | Lynk AI                          |
 | `FIREBASE_CREDENTIALS_JSON`                            | push, as JSON rather than a file |
 
 ## Deployment
 
 ```mermaid
 flowchart LR
-    PUSH["push to main"] --> CI["GitHub Actions<br/>202 tests<br/>real Postgres in Testcontainers"]
+    PUSH["push to main"] --> CI["GitHub Actions<br/>every test<br/>real Postgres in Testcontainers"]
     CI -->|green| BUILD["Railway<br/>multi-stage Dockerfile"]
     CI -->|red| STOP["nothing deploys"]
     BUILD --> IMG["JRE + one jar<br/>non-root, no source"]
-    IMG --> HEALTH{"/actuator/health<br/>/liveness"}
+    IMG --> HEALTH{"/actuator/health<br/>/readiness"}
     HEALTH -->|up| LIVE["api.lynk.com.ng"]
     HEALTH -->|never healthy| ROLL["previous container stays"]
 ```
 
-Push to `main` → GitHub Actions runs all 202 tests → Railway builds the multi-stage Dockerfile and deploys only if they
+Push to `main` → GitHub Actions runs every test → Railway builds the multi-stage Dockerfile and deploys only if they
 passed. The runtime image carries a JRE and one jar: no compiler, no source, no credentials, and it runs as an
 unprivileged user.
 
-Railway polls `/actuator/health/liveness` rather than the full health endpoint, so a database blip never triggers a
-restart that couldn't have helped.
+Railway moves traffic to a new deploy only once `/actuator/health/readiness` answers, rather than the full health
+endpoint, so a Redis or RabbitMQ blip can't hold up a deploy that is otherwise ready.
 
 ## Status
 
