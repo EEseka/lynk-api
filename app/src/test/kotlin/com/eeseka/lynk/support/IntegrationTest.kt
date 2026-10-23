@@ -6,8 +6,8 @@ import com.eeseka.lynk.notification.infra.push_notification.FirebasePushNotifica
 import com.eeseka.lynk.payment.infra.bank_logo.BankLogoClient
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
 import com.eeseka.lynk.spot.infra.google_places.GooglePlacesClient
+import com.eeseka.lynk.user.infra.google_auth.GoogleAuthClient
 import com.eeseka.lynk.user.infra.storage.SupabaseUserStorageClient
-import com.eeseka.lynk.user.service.GoogleAuthService
 import org.junit.jupiter.api.AfterEach
 import org.springframework.amqp.rabbit.core.RabbitTemplate
 import org.springframework.beans.factory.annotation.Autowired
@@ -29,6 +29,7 @@ import tools.jackson.databind.ObjectMapper
     TestAccounts::class,
     TestHangouts::class,
     TestBroker::class,
+    TestModel::class,
     DatabaseCleaner::class
 )
 abstract class IntegrationTest {
@@ -65,6 +66,9 @@ abstract class IntegrationTest {
     protected lateinit var broker: TestBroker
 
     @Autowired
+    protected lateinit var model: TestModel
+
+    @Autowired
     private lateinit var databaseCleaner: DatabaseCleaner
 
     @MockitoBean
@@ -82,10 +86,8 @@ abstract class IntegrationTest {
     @MockitoBean
     protected lateinit var supabaseHangoutStorageClient: SupabaseHangoutStorageClient
 
-    // Not a client by name, but it is still a trip to Google: it checks a token against Google's
-    // signing certificates. Tests say what a token means instead.
     @MockitoBean
-    protected lateinit var googleAuthService: GoogleAuthService
+    protected lateinit var googleAuthClient: GoogleAuthClient
 
     @MockitoBean
     protected lateinit var firebasePushNotificationClient: FirebasePushNotificationClient
@@ -93,10 +95,6 @@ abstract class IntegrationTest {
     @MockitoBean
     protected lateinit var brevoEmailClient: BrevoEmailClient
 
-    /**
-     * The broker is external too. Mocked rather than run, both so a test never waits on a connection
-     * that is not there and so a test can ask what the application tried to publish.
-     */
     @MockitoBean
     protected lateinit var rabbitTemplate: RabbitTemplate
 
@@ -104,5 +102,6 @@ abstract class IntegrationTest {
     fun clearDatabase() {
         databaseCleaner.clear()
         broker.reset()
+        model.reset()
     }
 }

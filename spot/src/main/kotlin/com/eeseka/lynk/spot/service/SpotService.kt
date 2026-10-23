@@ -1,6 +1,8 @@
 package com.eeseka.lynk.spot.service
 
+import com.eeseka.lynk.common.domain.events.spot.SpotEvent
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.spot.domain.exception.SpotNotFoundException
 import com.eeseka.lynk.spot.domain.model.PaginatedSpots
 import com.eeseka.lynk.spot.domain.model.Spot
@@ -20,7 +22,8 @@ import java.time.Instant
 @Service
 class SpotService(
     private val googlePlacesClient: GooglePlacesClient,
-    private val savedSpotRepository: SavedSpotRepository
+    private val savedSpotRepository: SavedSpotRepository,
+    private val eventPublisher: EventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -35,12 +38,11 @@ class SpotService(
     }
 
     fun searchSpots(
-        latitude: Double,
-        longitude: Double,
+        latitude: Double?,
+        longitude: Double?,
         query: String?,
         category: SpotCategory?,
         priceLevel: PriceLevel?,
-        radiusInMeters: Int,
         nextPageToken: String?,
         userId: UserId
     ): PaginatedSpots {
@@ -50,7 +52,6 @@ class SpotService(
             query = query,
             category = category,
             priceLevel = priceLevel,
-            radiusInMeters = radiusInMeters,
             nextPageToken = nextPageToken
         )
         val enrichedSpots = enrichWithSavedState(rawSpots, userId)
@@ -65,6 +66,18 @@ class SpotService(
         // Saved snapshots go stale (the venue moved, or Google expired the cover photo's name).
         // Since we just fetched fresh data from Google, we silently update every saved copy of it.
         updateStaleSnapshots(spot)
+        eventPublisher.publish(
+            SpotEvent.DetailsFetched(
+                spotId = spot.id,
+                name = spot.name,
+                coverPhotoUrl = spot.photoUrls.firstOrNull(),
+                category = spot.category.name,
+                priceLevel = spot.priceLevel?.name,
+                shortAddress = spot.shortAddress,
+                latitude = spot.latitude,
+                longitude = spot.longitude
+            )
+        )
 
         return spot.copy(isSaved = isSaved)
     }

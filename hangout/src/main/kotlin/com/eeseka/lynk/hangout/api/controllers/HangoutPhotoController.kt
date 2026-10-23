@@ -1,8 +1,8 @@
 package com.eeseka.lynk.hangout.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.HangoutPhotoId
 import com.eeseka.lynk.hangout.api.dto.GenerateHangoutPhotoUploadUrlsRequest

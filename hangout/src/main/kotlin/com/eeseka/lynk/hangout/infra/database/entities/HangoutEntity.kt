@@ -59,6 +59,9 @@ class HangoutEntity(
     @Column(nullable = false)
     var completionRemindersSent: Int = 0,
 
+    @Column(nullable = false)
+    var spotRemindersSent: Int = 0,
+
     @Column(nullable = true)
     var maxAttendees: Int?,
 

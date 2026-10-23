@@ -6,4 +6,7 @@ object MessageQueues {
     const val HANGOUT_USER_EVENTS = "hangout.user.events"
     const val SPOT_USER_EVENTS = "spot.user.events"
     const val PAYMENT_HANGOUT_EVENTS = "payment.hangout.events"
+    const val ASSISTANT_USER_EVENTS = "assistant.user.events"
+    const val ASSISTANT_HANGOUT_EVENTS = "assistant.hangout.events"
+    const val ASSISTANT_SPOT_EVENTS = "assistant.spot.events"
 }

@@ -53,7 +53,6 @@ class SpotJourneyTest : IntegrationTest() {
                 query = eq("jollof"),
                 category = eq(SpotCategory.RESTAURANT),
                 priceLevel = eq(PriceLevel.MODERATE),
-                radiusInMeters = eq(5000),
                 nextPageToken = eq("page-2")
             )
         ).willReturn(listOf(spot(SPOT_ID, "Terra Kulture")) to "page-3")
@@ -65,7 +64,6 @@ class SpotJourneyTest : IntegrationTest() {
             param("query", "jollof")
             param("category", SpotCategory.RESTAURANT.name)
             param("priceLevel", PriceLevel.MODERATE.name)
-            param("radiusInMeters", "5000")
             param("nextPageToken", "page-2")
         }.andExpect {
             status { isOk() }

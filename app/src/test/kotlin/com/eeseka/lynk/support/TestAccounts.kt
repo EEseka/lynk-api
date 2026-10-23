@@ -2,8 +2,9 @@ package com.eeseka.lynk.support
 
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.user.api.dto.AuthenticatedUserDto
+import com.eeseka.lynk.user.domain.model.GoogleUser
+import com.eeseka.lynk.user.infra.google_auth.GoogleAuthClient
 import com.eeseka.lynk.user.service.ApiKeyService
-import com.eeseka.lynk.user.service.GoogleAuthService
 import org.mockito.BDDMockito.given
 import org.springframework.boot.test.context.TestComponent
 import org.springframework.http.MediaType
@@ -25,7 +26,7 @@ class TestAccounts(
     private val mockMvc: MockMvc,
     private val objectMapper: ObjectMapper,
     private val apiKeyService: ApiKeyService,
-    private val googleAuthService: GoogleAuthService,
+    private val googleAuthClient: GoogleAuthClient,
     private val broker: TestBroker
 ) {
 
@@ -50,8 +51,8 @@ class TestAccounts(
         val apiKey = newApiKey()
         val googleToken = "google-token-for-$email"
 
-        given(googleAuthService.verify(googleToken)).willReturn(
-            GoogleAuthService.GoogleUser(
+        given(googleAuthClient.verify(googleToken)).willReturn(
+            GoogleUser(
                 email = email,
                 displayName = displayName,
                 pictureUrl = null

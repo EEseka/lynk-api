@@ -26,6 +26,7 @@ dependencies {
     implementation(project(":lobby"))
     implementation(project(":payment"))
     implementation(project(":notification"))
+    implementation(project(":assistant"))
 
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.security)
@@ -47,4 +48,5 @@ dependencies {
     testImplementation(libs.spring.boot.starter.amqp)
     testImplementation(libs.spring.boot.testcontainers)
     testImplementation(libs.testcontainers.postgresql)
+    testImplementation(libs.koog.agents)
 }

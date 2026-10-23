@@ -39,7 +39,7 @@ class SecurityConfig {
                         "/v3/api-docs/**"
                     )
                     .permitAll()
-                    .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD)
+                    .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.FORWARD, DispatcherType.ASYNC)
                     .permitAll()
                     .anyRequest()
                     .authenticated()

@@ -2,7 +2,7 @@ package com.eeseka.lynk.api.config
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
-import com.eeseka.lynk.infra.rate_limiting.UserRateLimiter
+import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value

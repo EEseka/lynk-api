@@ -1,5 +1,6 @@
 package com.eeseka.lynk.payment.service
 
+import com.eeseka.lynk.payment.domain.PaymentConstants.NUBAN_LENGTH
 import com.eeseka.lynk.payment.domain.exception.BankAccountNotResolvedException
 import com.eeseka.lynk.payment.domain.model.Bank
 import com.eeseka.lynk.payment.domain.model.BankAccount
@@ -12,10 +13,6 @@ class BankAccountService(
     private val paystackClient: PaystackClient,
     private val bankLogoClient: BankLogoClient
 ) {
-    companion object {
-        private const val NUBAN_LENGTH = 10
-    }
-
     fun getBanks(): List<Bank> {
         val logoUrlsByBankCode = bankLogoClient.getLogoUrlsByBankCode()
         return paystackClient.getBanks().map { bank ->

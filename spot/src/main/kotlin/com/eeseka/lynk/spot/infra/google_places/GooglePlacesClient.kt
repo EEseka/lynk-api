@@ -1,5 +1,6 @@
 package com.eeseka.lynk.spot.infra.google_places
 
+import com.eeseka.lynk.spot.domain.TopSpotsRanking
 import com.eeseka.lynk.spot.domain.model.BusinessStatus
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
@@ -18,13 +19,15 @@ class GooglePlacesClient(
     private val googlePlacesRestClient: RestClient
 ) {
     companion object {
-        private const val TOP_SPOTS_COUNT = 10
+        private const val SEARCH_RADIUS_METERS = 5_000.0 // Only a preference: a place farther out that matches the words well still comes back
+        private const val TRENDING_RADIUS_METERS = 5_000.0
+        private const val TRENDING_FALLBACK_RADIUS_METERS = 50_000.0 // Nothing within reach (the sea, a forest), so look much wider and take the nearest
     }
 
     private val placeFields = listOf(
         "id", "displayName", "primaryTypeDisplayName", "editorialSummary", "generativeSummary", "reviewSummary",
         "photos", "primaryType", "types", "priceLevel", "priceRange", "rating", "userRatingCount",
-        "businessStatus", "currentOpeningHours", "utcOffsetMinutes",
+        "businessStatus", "currentOpeningHours", "utcOffsetMinutes", "timeZone",
         "goodForGroups", "reservable", "liveMusic", "outdoorSeating", "servesCocktails", "goodForWatchingSports",
         "parkingOptions", "paymentOptions",
         "formattedAddress", "shortFormattedAddress", "location",
@@ -35,6 +38,9 @@ class GooglePlacesClient(
 
     private val searchFieldMask = "$listFieldMask,nextPageToken"
 
+    // The address parts are only needed to keep a Top 10 inside its area
+    private val topSpotsFieldMask = "$listFieldMask,places.addressComponents"
+
     private val detailsFieldMask = placeFields.joinToString(",")
 
     @Cacheable(
@@ -42,8 +48,8 @@ class GooglePlacesClient(
         key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0 + '_' + #limit"
     )
     fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
-        return searchNearby(latitude, longitude, limit, radiusInMeters = 5000.0, rankByDistance = false)
-            .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = 50000.0, rankByDistance = true) }
+        return searchNearby(latitude, longitude, limit, radiusInMeters = TRENDING_RADIUS_METERS, rankByDistance = false)
+            .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = TRENDING_FALLBACK_RADIUS_METERS, rankByDistance = true) }
     }
 
     @Cacheable(
@@ -53,30 +59,29 @@ class GooglePlacesClient(
     fun getTopSpots(city: String): List<Spot> {
         val body = mapOf(
             "textQuery" to "popular places to hang out in ${city.trim()}",
-            "pageSize" to 20 // Twice what's shown, so closed places can drop out and still leave ten
+            "pageSize" to 20 // Twice what's shown, so places from elsewhere, closed or not for hanging out, can drop out and still leave ten
         )
 
         val response = googlePlacesRestClient.post()
             .uri("/places:searchText")
-            .header("X-Goog-FieldMask", listFieldMask)
+            .header("X-Goog-FieldMask", topSpotsFieldMask)
             .body(body)
             .retrieve()
             .body<GooglePlacesSearchResponse>()
 
-        return response?.places
-            ?.mapNotNull { it.toSpot() }
-            ?.filter { it.isOpenForBusiness() }
-            ?.take(TOP_SPOTS_COUNT)
-            ?: emptyList()
+        val spots = response?.places.orEmpty()
+            .inArea(city)
+            .mapNotNull { it.toSpot() }
+            .filter { it.isListable() }
+        return TopSpotsRanking.pick(spots)
     }
 
     fun searchSpots(
-        latitude: Double,
-        longitude: Double,
+        latitude: Double?,
+        longitude: Double?,
         query: String?,
         category: SpotCategory?,
         priceLevel: PriceLevel?,
-        radiusInMeters: Int,
         nextPageToken: String?
     ): Pair<List<Spot>, String?> {
         val normalizedQuery = query?.trim()?.takeIf { it.isNotEmpty() }
@@ -91,16 +96,19 @@ class GooglePlacesClient(
             else -> "places to visit"
         }
 
-        val body = mutableMapOf(
+        val body = mutableMapOf<String, Any>(
             "textQuery" to actualQuery,
-            "pageSize" to 20,
-            "locationBias" to mapOf(
+            "pageSize" to 20
+        )
+
+        if (latitude != null && longitude != null) {
+            body["locationBias"] = mapOf(
                 "circle" to mapOf(
                     "center" to mapOf("latitude" to latitude, "longitude" to longitude),
-                    "radius" to radiusInMeters.toDouble()
+                    "radius" to SEARCH_RADIUS_METERS
                 )
             )
-        )
+        }
 
         normalizedNextPageToken?.let { body["pageToken"] = it }
 
@@ -167,19 +175,7 @@ class GooglePlacesClient(
     ): List<Spot> {
         val body = mutableMapOf(
             "maxResultCount" to limit,
-            "includedTypes" to listOf(
-                "restaurant",
-                "cafe",
-                "bar",
-                "night_club",
-                "tourist_attraction",
-                "park",
-                "movie_theater",
-                "bowling_alley",
-                "amusement_center",
-                "art_gallery",
-                "shopping_mall"
-            ),
+            "includedTypes" to GooglePlaceTypes.trendingTypes,
             "locationRestriction" to mapOf(
                 "circle" to mapOf(
                     "center" to mapOf("latitude" to latitude, "longitude" to longitude),
@@ -199,7 +195,12 @@ class GooglePlacesClient(
             .retrieve()
             .body<GooglePlacesSearchResponse>()
 
-        return response?.places?.mapNotNull { it.toSpot() }?.filter { it.isOpenForBusiness() } ?: emptyList()
+        return response?.places?.mapNotNull { it.toSpot() }?.filter { it.isListable() } ?: emptyList()
+    }
+
+    // What trending and a Top 10 suggest on their own. Search skips the category check, because whoever typed "Eko Hotel" asked for it
+    private fun Spot.isListable(): Boolean {
+        return isOpenForBusiness() && category != SpotCategory.OTHER
     }
 
     // Lists never suggest a closed venue; details still return one so a saved or chosen spot can say it closed

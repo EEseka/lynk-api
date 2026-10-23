@@ -1,8 +1,8 @@
 package com.eeseka.lynk.infra.rate_limiting
 
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.domain.exception.RateLimitException
 import com.eeseka.lynk.common.domain.exception.RateLimiterUnavailableException
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataAccessException

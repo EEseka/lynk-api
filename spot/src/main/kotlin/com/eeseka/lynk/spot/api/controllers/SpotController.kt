@@ -1,8 +1,8 @@
 package com.eeseka.lynk.spot.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
 import com.eeseka.lynk.spot.api.mappers.toPaginatedSpotsDto
@@ -27,13 +27,17 @@ class SpotController(
     companion object {
         private const val DEFAULT_TRENDING_LIMIT = 20
         private const val DEFAULT_PAGE_SIZE = 20
-        private const val DEFAULT_SEARCH_RADIUS_IN_METERS = 5000
 
         private const val MAX_TRENDING_LIMIT = 20
         private const val MAX_PAGE_SIZE = 50
-        private const val MAX_SEARCH_RADIUS_METERS = 50_000
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/trending")
     fun getTrendingSpots(
         @RequestParam
@@ -56,6 +60,12 @@ class SpotController(
         ).map { it.toSpotDto() }
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/top")
     fun getTopSpots(
         @RequestParam
@@ -94,10 +104,6 @@ class SpotController(
         priceLevel: PriceLevel? = null,
 
         @RequestParam(required = false)
-        @Min(1) @Max(MAX_SEARCH_RADIUS_METERS.toLong())
-        radiusInMeters: Int = DEFAULT_SEARCH_RADIUS_IN_METERS,
-
-        @RequestParam(required = false)
         nextPageToken: String? = null
     ): PaginatedSpotsDto {
         return spotService.searchSpots(
@@ -106,12 +112,17 @@ class SpotController(
             query = query,
             category = category,
             priceLevel = priceLevel,
-            radiusInMeters = radiusInMeters,
             nextPageToken = nextPageToken,
             userId = requestUserId
         ).toPaginatedSpotsDto()
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @GetMapping("/{spotId}")
     fun getSpotById(
         @PathVariable spotId: String
@@ -122,6 +133,12 @@ class SpotController(
         ).toSpotDto()
     }
 
+    @UserRateLimit(
+        requests = 300,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     @PostMapping("/{spotId}/save")
     @ResponseStatus(HttpStatus.CREATED)
     fun saveSpot(

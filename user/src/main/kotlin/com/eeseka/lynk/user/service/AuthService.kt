@@ -15,6 +15,7 @@ import com.eeseka.lynk.user.infra.database.entities.UserEntity
 import com.eeseka.lynk.user.infra.database.mappers.toUser
 import com.eeseka.lynk.user.infra.database.repositories.RefreshTokenRepository
 import com.eeseka.lynk.user.infra.database.repositories.UserRepository
+import com.eeseka.lynk.user.infra.google_auth.GoogleAuthClient
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
@@ -32,7 +33,7 @@ class AuthService(
     private val jwtService: JwtService,
     private val refreshTokenRepository: RefreshTokenRepository,
     private val eventPublisher: EventPublisher,
-    private val googleAuthService: GoogleAuthService,
+    private val googleAuthClient: GoogleAuthClient,
     private val accountDeletionGuards: List<AccountDeletionGuard>,
     private val applicationEventPublisher: ApplicationEventPublisher,
     @param:Value("\${supabase.url}") private val supabaseUrl: String
@@ -40,7 +41,7 @@ class AuthService(
 
     @Transactional
     fun googleLogin(token: String): AuthenticatedUser {
-        val googleUser = googleAuthService.verify(token)
+        val googleUser = googleAuthClient.verify(token)
 
         val existingUser = userRepository.findByEmail(googleUser.email)
 

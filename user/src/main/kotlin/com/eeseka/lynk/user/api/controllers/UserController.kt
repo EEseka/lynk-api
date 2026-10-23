@@ -1,8 +1,8 @@
 package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.config.UserRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.user.api.dto.CreateProfileRequest
 import com.eeseka.lynk.user.api.dto.GenerateProfilePictureUploadUrlRequest
 import com.eeseka.lynk.user.api.dto.ProfilePictureUploadResponse

@@ -1,5 +1,6 @@
 package com.eeseka.lynk.support
 
+import com.eeseka.lynk.common.domain.type.AssistantMessageId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.HangoutPhotoId
 import com.eeseka.lynk.common.domain.type.UserId
@@ -195,6 +196,15 @@ class TestFixtures(
         )
     }
 
+    /** Ages a hangout, so it reads as planned well before its date. */
+    fun ageHangout(hangoutId: HangoutId, createdAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE hangout_service.hangouts SET created_at = ? WHERE id = ?",
+            Timestamp.from(createdAt),
+            hangoutId
+        )
+    }
+
     /** Ages a photo for the sweep that clears uploads nobody finished. */
     fun agePhoto(photoId: HangoutPhotoId, createdAt: Instant) {
         jdbcTemplate.update(
@@ -219,6 +229,15 @@ class TestFixtures(
             "UPDATE user_service.refresh_tokens SET expires_at = ? WHERE user_id = ?",
             Timestamp.from(expiresAt),
             userId
+        )
+    }
+
+    /** Ages an assistant answer, for the sweep that fails answers stuck in PENDING. */
+    fun ageAssistantMessage(messageId: AssistantMessageId, createdAt: Instant) {
+        jdbcTemplate.update(
+            "UPDATE assistant_service.assistant_messages SET created_at = ? WHERE id = ?",
+            Timestamp.from(createdAt),
+            messageId
         )
     }
 

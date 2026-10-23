@@ -3,6 +3,16 @@ spring:
     url: jdbc:postgresql://aws-0-eu-west-1.pooler.supabase.com:5432/postgres?sslmode=require
     username: postgres.nprfqkurgivwqjnzkemp
 
+  data:
+    redis:
+      host: "redis-15403.c247.eu-west-1-1.ec2.cloud.redislabs.com"
+      port: 15403
+
+  rabbitmq:
+    host: stingray-01.rmq.cloudamqp.com
+    username: mwaaldxc
+    virtual-host: mwaaldxc
+
   jpa:
     hibernate:
       ddl-auto: validate
@@ -19,7 +29,7 @@ jwt:
 
 lynk:
   email:
-    url: "http://localhost:8080"
+    url: "http://localhost:4321"
     logo-url: "https://nprfqkurgivwqjnzkemp.supabase.co/storage/v1/object/public/assets/lynk-logo.png"
   rate-limit:
     ip:

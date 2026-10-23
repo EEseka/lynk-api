@@ -3,6 +3,16 @@ spring:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
 
+  data:
+    redis:
+      host: "redis.railway.internal"
+      port: 6379
+
+  rabbitmq:
+    host: cow-01.rmq2.cloudamqp.com
+    username: ualmcbwh
+    virtual-host: ualmcbwh
+
   jpa:
     hibernate:
       ddl-auto: validate

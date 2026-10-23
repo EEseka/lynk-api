@@ -1,7 +1,7 @@
 package com.eeseka.lynk.user.api.controllers
 
 import com.eeseka.lynk.common.api.config.IpRateLimit
-import com.eeseka.lynk.common.api.config.WhenRedisIsDown
+import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.user.api.dto.ApiKeyDto
 import com.eeseka.lynk.user.api.dto.CreateApiKeyRequest
 import com.eeseka.lynk.user.api.mappers.toApiKeyDto

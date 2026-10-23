@@ -52,3 +52,6 @@ places:
 
 paystack:
   secret-key: dummy-paystack-secret-key
+
+anthropic:
+  api-key: dummy-anthropic-key

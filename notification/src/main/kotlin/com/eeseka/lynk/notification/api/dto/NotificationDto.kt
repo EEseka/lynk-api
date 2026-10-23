@@ -15,7 +15,3 @@ data class NotificationDto(
     val isRead: Boolean,
     val createdAt: Instant
 )
-
-data class UnreadCountDto(
-    val count: Long
-)

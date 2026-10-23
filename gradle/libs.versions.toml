@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 springBoot = "4.0.8"
 dependencyManagement = "1.1.7"
 
@@ -10,6 +10,8 @@ coroutines = "1.11.0"
 googleApiClient = "2.9.0"
 
 springdoc = "3.0.3"
+
+koog = "1.3.0"
 
 mockitoKotlin = "6.3.0"
 
@@ -41,6 +43,9 @@ google-api-client = { module = "com.google.api-client:google-api-client", versio
 
 # API Documentation
 springdoc-openapi-starter-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
+
+# AI Agents
+koog-agents = { module = "ai.koog:koog-agents", version.ref = "koog" }
 
 # Kotlin
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
