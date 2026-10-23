@@ -25,6 +25,9 @@ class TestModel : PromptExecutor() {
 
     private val scriptedCalls = ConcurrentLinkedQueue<Flow<StreamFrame>>()
 
+    /** Every prompt the model was sent, in order, so a test can read what the model was told. */
+    val prompts = ConcurrentLinkedQueue<Prompt>()
+
     fun script(vararg calls: Flow<StreamFrame>) {
         scriptedCalls.clear()
         scriptedCalls.addAll(calls)
@@ -33,10 +36,13 @@ class TestModel : PromptExecutor() {
     /** Called between tests, so one test's leftover calls never answer the next. */
     fun reset() {
         scriptedCalls.clear()
+        prompts.clear()
     }
 
-    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Flow<StreamFrame> =
-        scriptedCalls.poll() ?: error("The model was called more times than the test scripted")
+    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Flow<StreamFrame> {
+        prompts.add(prompt)
+        return scriptedCalls.poll() ?: error("The model was called more times than the test scripted")
+    }
 
     override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant =
         error("The assistant only ever streams")

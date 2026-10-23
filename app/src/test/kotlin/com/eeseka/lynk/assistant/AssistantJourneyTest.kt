@@ -6,6 +6,7 @@ import com.eeseka.lynk.assistant.domain.model.AssistantFailureReason
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageStatus
 import com.eeseka.lynk.assistant.domain.model.DiscoverChat
+import com.eeseka.lynk.assistant.domain.model.DiscoverChatSpot
 import com.eeseka.lynk.assistant.infra.database.repositories.AssistantMessageRepository
 import com.eeseka.lynk.assistant.infra.database.repositories.AssistantSpotRepository
 import com.eeseka.lynk.assistant.infra.messaging.AssistantUserEventListener
@@ -102,7 +103,7 @@ class AssistantJourneyTest : IntegrationTest() {
     fun `the refund route is the one the rate limiter counts`() {
         val interceptorRoute = "${AssistantController::class.simpleName}.${AssistantController::sendMessage.name}"
 
-        assertEquals(interceptorRoute, AssistantService.SEND_MESSAGE_ROUTE)
+        assertEquals(AssistantService.SEND_MESSAGE_ROUTE, interceptorRoute)
     }
 
     @Test
@@ -128,6 +129,56 @@ class AssistantJourneyTest : IntegrationTest() {
         assertEquals("Terra Kulture fits.", answer.content)
         assertEquals(1, answer.searchCount)
         assertEquals(listOf(SPOT_ID), assistantSpotRepository.findAll().map { it.googlePlaceId })
+    }
+
+    @Test
+    fun `keeps the words written beside the cards and drops the ones written before a search`() {
+        val hangoutId = votingHangout(ada)
+        scriptModel(
+            textThenToolCall("Let me look around for you.", "search_spots", """{"query":"quiet restaurant"}"""),
+            textThenToolCall(
+                "Terra Kulture is calm and good for groups.",
+                "recommend_spot",
+                """{"spotId":"$SPOT_ID","reason":"Calm, and good for groups."}"""
+            )
+        )
+
+        awaitAnswer(askInHangout(ada, hangoutId, "Somewhere quiet?"))
+
+        val answer = assistantMessageRepository.findAll().first { it.role == AssistantMessageRole.ASSISTANT }
+        assertEquals("Terra Kulture is calm and good for groups.", answer.content)
+        assertEquals(2, model.prompts.size)
+    }
+
+    @Test
+    fun `lets the model write again when a card could not be added`() {
+        val hangoutId = votingHangout(ada)
+        scriptModel(
+            textThenToolCall("Try Nowhere Bar.", "recommend_spot", """{"spotId":"ChIJmadeup","reason":"Trust me."}"""),
+            text("I could not find a place yet.")
+        )
+
+        awaitAnswer(askInHangout(ada, hangoutId, "Anywhere?"))
+
+        val answer = assistantMessageRepository.findAll().first { it.role == AssistantMessageRole.ASSISTANT }
+        assertEquals("I could not find a place yet.", answer.content)
+    }
+
+    @Test
+    fun `reminds the model of earlier cards by name`() {
+        val hangoutId = votingHangout(ada)
+        scriptModel(
+            toolCall("search_spots", """{"query":"quiet restaurant"}"""),
+            toolCall("recommend_spot", """{"spotId":"$SPOT_ID","reason":"Calm, and good for groups."}"""),
+            text("Terra Kulture fits.")
+        )
+        awaitAnswer(askInHangout(ada, hangoutId, "Somewhere quiet?"))
+
+        scriptModel(text("It is open then."))
+        awaitAnswer(askInHangout(ada, hangoutId, "Is the first one open?"))
+
+        val history = model.prompts.last().messages.joinToString("\n") { it.textContent() }
+        assertTrue("Terra Kulture [spotId $SPOT_ID]" in history)
     }
 
     @Test
@@ -340,7 +391,7 @@ class AssistantJourneyTest : IntegrationTest() {
         val saved = argumentCaptor<DiscoverChat>()
         verify(discoverChatRepository).save(eq(ada.userId), saved.capture())
         assertEquals(listOf("A cafe?", "This one."), saved.firstValue.messages.map { it.content })
-        assertEquals(listOf(SPOT_ID), saved.firstValue.messages.last().spotIds)
+        assertEquals(listOf(DiscoverChatSpot(id = SPOT_ID, name = "Terra Kulture")), saved.firstValue.messages.last().spots)
         verify(discoverChatRepository).finishAnswering(ada.userId)
         assertEquals(0, assistantMessageRepository.count())
     }
@@ -397,6 +448,13 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     private fun toolCall(name: String, args: String): List<StreamFrame> = listOf(
+        StreamFrame.ToolCallComplete(id = "call_${UUID.randomUUID()}", name = name, content = args),
+        StreamFrame.End(finishReason = "tool_use")
+    )
+
+    private fun textThenToolCall(words: String, name: String, args: String): List<StreamFrame> = listOf(
+        StreamFrame.TextDelta(words),
+        StreamFrame.TextComplete(words),
         StreamFrame.ToolCallComplete(id = "call_${UUID.randomUUID()}", name = name, content = args),
         StreamFrame.End(finishReason = "tool_use")
     )

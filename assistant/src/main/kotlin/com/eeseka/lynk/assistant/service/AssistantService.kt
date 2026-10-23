@@ -15,6 +15,7 @@ import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
 import com.eeseka.lynk.assistant.domain.model.AssistantStreamEvent
 import com.eeseka.lynk.assistant.domain.model.DiscoverChat
 import com.eeseka.lynk.assistant.domain.model.DiscoverChatMessage
+import com.eeseka.lynk.assistant.domain.model.DiscoverChatSpot
 import com.eeseka.lynk.assistant.infra.redis.DiscoverChatRepository
 import com.eeseka.lynk.assistant.service.agent.AssistantAgent
 import com.eeseka.lynk.assistant.service.agent.AssistantPrompts
@@ -230,7 +231,7 @@ class AssistantService(
             searchLongitude = longitude,
             hangoutTime = null,
             ballotSpotIds = emptyList(),
-            earlierRecommendedSpotIds = chat.messages.flatMap { it.spotIds }.distinct()
+            earlierRecommendedSpotIds = chat.messages.flatMap { message -> message.spots.map { it.id } }.distinct()
         )
 
         onEvent(AssistantStreamEvent.Started(messageId = null, discoverChatId = chat.id))
@@ -241,11 +242,11 @@ class AssistantService(
             onFinished = onFinished,
             saveAnswer = { answer ->
                 val messages = chat.messages +
-                        DiscoverChatMessage(role = AssistantMessageRole.USER, content = question, spotIds = emptyList()) +
+                        DiscoverChatMessage(role = AssistantMessageRole.USER, content = question, spots = emptyList()) +
                         DiscoverChatMessage(
                             role = AssistantMessageRole.ASSISTANT,
                             content = answer.content,
-                            spotIds = turn.recommendations.map { it.spot.id }
+                            spots = turn.recommendations.map { DiscoverChatSpot(id = it.spot.id, name = it.spot.name) }
                         )
                 discoverChatRepository.save(userId, chat.copy(messages = messages.takeLast(HISTORY_MESSAGES)))
             },

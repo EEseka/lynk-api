@@ -70,7 +70,7 @@ private fun GooglePriceRange.toSpotPriceRange(): SpotPriceRange? {
     val currencyCode = startPrice?.currencyCode ?: endPrice?.currencyCode ?: return null
     return SpotPriceRange(
         currencyCode = currencyCode,
-        startAmount = startPrice?.units?.toLongOrNull(),
+        startAmount = startPrice?.units?.toLongOrNull()?.takeIf { it > 1 },
         endAmount = endPrice?.units?.toLongOrNull()
     )
 }

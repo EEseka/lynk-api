@@ -32,8 +32,7 @@ class AssistantAgent(
         onEvent: (AssistantStreamEvent) -> Unit
     ): AssistantAnswer {
         var conversation = prompt
-        // Only the last round that wrote anything is the reply; earlier rounds are the model talking itself
-        // through its searches and showing them stitched narration and repeated lines into the answer
+        // Words written before a search or a details lookup are the model talking itself through it, so only what comes after the last lookup can be the reply
         var reply = ""
         var inputTokens = 0
         var outputTokens = 0
@@ -53,9 +52,14 @@ class AssistantAgent(
             if (response.finishReason == REFUSAL_STOP_REASON) throw AssistantRefusedException()
 
             val roundText = frames.filterIsInstance<StreamFrame.TextDelta>().joinToString("") { it.text }
-            if (roundText.isNotBlank()) reply = roundText
-
             val toolCalls = response.parts.filterIsInstance<MessagePart.Tool.Call>()
+            val isLookingUp = toolCalls.any { AssistantToolName.fromWireName(it.tool) != AssistantToolName.RECOMMEND_SPOT }
+            reply = when {
+                isLookingUp -> ""
+                roundText.isBlank() -> reply
+                else -> roundText
+            }
+
             if (toolCalls.isEmpty()) {
                 return finish(reply, inputTokens, outputTokens, onEvent)
             }
@@ -63,6 +67,12 @@ class AssistantAgent(
             val toolResults = toolCalls.map { call ->
                 statusFor(call.tool)?.let { onEvent(AssistantStreamEvent.Status(it)) }
                 call to assistantToolService.runTool(call.tool, call.args, turn)
+            }
+
+            // Asked again after its cards are added, the model writes the same reply a second time
+            val isAllCardsAdded = !isLookingUp && toolResults.none { (_, result) -> result.isError }
+            if (isAllCardsAdded && roundText.isNotBlank()) {
+                return finish(reply, inputTokens, outputTokens, onEvent)
             }
 
             conversation = prompt(conversation.withMessages { it + response }) {
