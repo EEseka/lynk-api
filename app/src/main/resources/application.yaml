@@ -12,16 +12,17 @@ spring:
 
   data:
     redis:
-      host: "redis-15403.c247.eu-west-1-1.ec2.cloud.redislabs.com"
       password: ${REDIS_PASSWORD}
       username: "default"
-      port: 15403
       connect-timeout: 5000ms
       timeout: 2000ms
 
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+  jpa:
+    open-in-view: false
 
   datasource:
     password: ${POSTGRES_PASSWORD}
@@ -45,12 +46,9 @@ spring:
         connectTimeout: 10
 
   rabbitmq:
-    host: stingray-01.rmq.cloudamqp.com
     password: ${RABBITMQ_PASSWORD}
-    username: mwaaldxc
     ssl:
       enabled: true
-    virtual-host: mwaaldxc
     listener:
       simple:
         acknowledge-mode: auto
