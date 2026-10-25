@@ -9,7 +9,6 @@ import ai.koog.prompt.executor.clients.anthropic.models.AnthropicThinking
 import com.eeseka.lynk.assistant.domain.model.AssistantMessage
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageStatus
-import com.eeseka.lynk.assistant.domain.model.DiscoverChatMessage
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.spot.domain.model.Spot
 import java.time.Instant
@@ -81,14 +80,14 @@ object AssistantPrompts {
 
         return prompt("assistant-hangout", params()) {
             system("$rules\n\n$context")
-            hangoutHistory(history)
+            chatHistory(history.asReversed())
             user(question)
         }
     }
 
     fun discoverPrompt(
         zoneId: ZoneId,
-        history: List<DiscoverChatMessage>,
+        history: List<AssistantMessage>,
         question: String
     ): Prompt {
         val context = """
@@ -101,15 +100,15 @@ object AssistantPrompts {
 
         return prompt("assistant-discover", params()) {
             system("$rules\n\n$context")
-            discoverHistory(history)
+            chatHistory(history)
             user("<now>$now</now>\n\n$question")
         }
     }
 
     // Only finished exchanges go back in. A question whose answer failed would leave two questions in a row
-    private fun PromptBuilder.hangoutHistory(newestFirst: List<AssistantMessage>) {
+    private fun PromptBuilder.chatHistory(oldestFirst: List<AssistantMessage>) {
         var question: AssistantMessage? = null
-        newestFirst.asReversed().forEach { message ->
+        oldestFirst.forEach { message ->
             when (message.role) {
                 AssistantMessageRole.USER -> question = message
                 AssistantMessageRole.ASSISTANT -> {
@@ -120,15 +119,6 @@ object AssistantPrompts {
                         assistant(withRecommendationLine(message.content, message.recommendations.map { it.spot.id to it.spot.name }))
                     }
                 }
-            }
-        }
-    }
-
-    private fun PromptBuilder.discoverHistory(oldestFirst: List<DiscoverChatMessage>) {
-        oldestFirst.forEach { message ->
-            when (message.role) {
-                AssistantMessageRole.USER -> user(message.content)
-                AssistantMessageRole.ASSISTANT -> assistant(withRecommendationLine(message.content, message.spots.map { it.id to it.name }))
             }
         }
     }

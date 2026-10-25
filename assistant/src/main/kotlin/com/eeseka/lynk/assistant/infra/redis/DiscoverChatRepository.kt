@@ -1,6 +1,9 @@
 package com.eeseka.lynk.assistant.infra.redis
 
 import com.eeseka.lynk.assistant.domain.model.DiscoverChat
+import com.eeseka.lynk.assistant.infra.redis.dto.DiscoverChatDto
+import com.eeseka.lynk.assistant.infra.redis.mappers.toDiscoverChat
+import com.eeseka.lynk.assistant.infra.redis.mappers.toDiscoverChatDto
 import com.eeseka.lynk.common.domain.type.DiscoverChatId
 import com.eeseka.lynk.common.domain.type.UserId
 import org.springframework.data.redis.core.StringRedisTemplate
@@ -22,13 +25,13 @@ class DiscoverChatRepository(
 
     fun find(userId: UserId, chatId: DiscoverChatId): DiscoverChat? {
         val json = redisTemplate.opsForValue().get(chatKey(userId, chatId)) ?: return null
-        return objectMapper.readValue(json, DiscoverChat::class.java)
+        return objectMapper.readValue(json, DiscoverChatDto::class.java).toDiscoverChat()
     }
 
     fun save(userId: UserId, chat: DiscoverChat) {
         redisTemplate.opsForValue().set(
             chatKey(userId, chat.id),
-            objectMapper.writeValueAsString(chat),
+            objectMapper.writeValueAsString(chat.toDiscoverChatDto()),
             CHAT_TTL
         )
     }

@@ -10,6 +10,7 @@ import com.eeseka.lynk.assistant.api.sse.AssistantStreamHandler
 import com.eeseka.lynk.assistant.service.AssistantService
 import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
+import com.eeseka.lynk.common.domain.type.DiscoverChatId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
@@ -74,6 +75,16 @@ class AssistantController(
             hangoutId = hangoutId,
             before = before,
             pageSize = pageSize
+        ).map { it.toAssistantMessageDto() }
+    }
+
+    @GetMapping("/discover/{discoverChatId}/messages")
+    fun getDiscoverMessages(
+        @PathVariable discoverChatId: DiscoverChatId
+    ): List<AssistantMessageDto> {
+        return assistantService.getDiscoverMessages(
+            userId = requestUserId,
+            discoverChatId = discoverChatId
         ).map { it.toAssistantMessageDto() }
     }
 

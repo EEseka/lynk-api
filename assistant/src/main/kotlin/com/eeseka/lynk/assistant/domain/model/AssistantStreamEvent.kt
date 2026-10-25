@@ -5,7 +5,7 @@ import com.eeseka.lynk.common.domain.type.DiscoverChatId
 
 sealed interface AssistantStreamEvent {
     data class Started(
-        val messageId: AssistantMessageId?, // Hangout chats
+        val messageId: AssistantMessageId,
         val discoverChatId: DiscoverChatId? // Discover chats
     ) : AssistantStreamEvent
 
