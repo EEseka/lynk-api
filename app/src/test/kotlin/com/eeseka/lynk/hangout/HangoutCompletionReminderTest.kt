@@ -10,11 +10,9 @@ import com.eeseka.lynk.support.TestAccount
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.repository.findByIdOrNull
-import org.springframework.orm.ObjectOptimisticLockingFailureException
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 /**
  * The pushes a host gets at 1, 3, and 7 days while a hangout is still going, since only the host can
@@ -48,7 +46,7 @@ class HangoutCompletionReminderTest : IntegrationTest() {
     }
 
     @Test
-    fun `reminds the host again at three days and a week, then stops`() {
+    fun `reminds the host again at three days and a week and then stops`() {
         val host = signIn("ada")
         val hangoutId = ongoing(host, startedAgo = Duration.ofHours(30))
         hangoutService.remindHostsToCompleteHangouts()
@@ -88,28 +86,51 @@ class HangoutCompletionReminderTest : IntegrationTest() {
     }
 
     @Test
-    fun `will not let a save from before the reminder undo it`() {
+    fun `a hangout that missed earlier reminders gets only the one it is due now`() {
+        val host = signIn("ada")
+        ongoing(host, startedAgo = Duration.ofDays(8))
+
+        hangoutService.remindHostsToCompleteHangouts()
+        hangoutService.remindHostsToCompleteHangouts()
+        broker.deliverEvents()
+
+        assertEquals(1, remindersSent())
+    }
+
+    @Test
+    fun `a save from before the reminder goes through and does not undo it`() {
         val host = signIn("ada")
         val hangoutId = ongoing(host, startedAgo = Duration.ofHours(30))
         val loadedBeforeReminder = hangoutRepository.findByIdOrNull(hangoutId)!!
 
         hangoutService.remindHostsToCompleteHangouts()
-
-        // Without the version bump this save would write the reminder count back to zero
         loadedBeforeReminder.name = "Renamed"
-        assertFailsWith<ObjectOptimisticLockingFailureException> {
-            hangoutRepository.save(loadedBeforeReminder)
-        }
+        hangoutRepository.save(loadedBeforeReminder)
+        hangoutService.remindHostsToCompleteHangouts()
+        broker.deliverEvents()
+
+        assertEquals(1, remindersSent())
+    }
+
+    @Test
+    fun `leaves a hangout only its host went to alone`() {
+        val host = signIn("ada")
+        ongoing(host, startedAgo = Duration.ofDays(2), attendees = emptyList())
+
+        hangoutService.remindHostsToCompleteHangouts()
+        broker.deliverEvents()
+
+        assertEquals(0, remindersSent())
     }
 
     private fun remindersSent(): Int =
         notificationRepository.findAll().count { it.type == NotificationType.HANGOUT_COMPLETION_REMINDER }
 
-    /** A hangout the real sweep has started, with its start moved back by [startedAgo]. */
+    /** A hangout the real sweep has started, with its start moved back by [startedAgo]. Somebody joins it unless told otherwise. */
     private fun ongoing(
         host: TestAccount,
         startedAgo: Duration,
-        attendees: List<TestAccount> = emptyList()
+        attendees: List<TestAccount> = listOf(signIn("bola"))
     ): HangoutId {
         val hangoutId = hangouts.scheduled(host).id
         attendees.forEach {

@@ -102,6 +102,7 @@ sealed class HangoutEvent(
         val hangoutId: HangoutId,
         val hangoutName: String,
         val recipientIds: Set<UserId>,
+        val isSolo: Boolean,
         override val eventKey: String = HangoutEventConstants.HANGOUT_STARTED_KEY
     ) : HangoutEvent(), LynkEvent
 
@@ -118,6 +119,13 @@ sealed class HangoutEvent(
         val hostId: UserId,
         val hasStarted: Boolean,
         override val eventKey: String = HangoutEventConstants.HANGOUT_SPOT_REMINDER_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class HangoutSoloReminder(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val hostId: UserId,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_SOLO_REMINDER_KEY
     ) : HangoutEvent(), LynkEvent
 
     data class PhotosAdded(

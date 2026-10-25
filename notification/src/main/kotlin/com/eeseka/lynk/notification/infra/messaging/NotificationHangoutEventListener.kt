@@ -51,10 +51,11 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
                 is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
                 is HangoutEvent.HangoutSpotReminder -> onHangoutSpotReminder(event)
+                is HangoutEvent.HangoutSoloReminder -> onHangoutSoloReminder(event)
                 is HangoutEvent.PhotosAdded -> onPhotosAdded(event)
                 is HangoutEvent.PaymentReceived -> onPaymentReceived(event)
                 is HangoutEvent.RefundIssued -> onRefundIssued(event)
-                is HangoutEvent.AbandonedHangoutsDeleted -> Unit
+                is HangoutEvent.AbandonedHangoutsDeleted -> notificationService.deleteAllForHangouts(event.hangoutIds)
             }
         } catch (e: Exception) {
             logger.error("Could not handle ${event.eventKey} for hangout event ${event.eventId}", e)
@@ -250,10 +251,14 @@ class NotificationHangoutEventListener(
     private fun onHangoutStarted(event: HangoutEvent.HangoutStarted) {
         notify(
             recipientIds = event.recipientIds,
-            type = NotificationType.HANGOUT_STARTED,
+            type = if (event.isSolo) NotificationType.SOLO_STARTED else NotificationType.HANGOUT_STARTED,
             hangoutId = event.hangoutId,
             hangoutName = event.hangoutName,
-            message = "Kicking off now, come see who's there"
+            message = if (event.isSolo) {
+                "It's starting now. Invite whoever is with you so you can share photos after"
+            } else {
+                "Kicking off now, come see who's there"
+            }
         )
     }
 
@@ -278,6 +283,16 @@ class NotificationHangoutEventListener(
             } else {
                 "It starts in less than a day and still has no spot. Pick one or move the date"
             }
+        )
+    }
+
+    private fun onHangoutSoloReminder(event: HangoutEvent.HangoutSoloReminder) {
+        notify(
+            recipientIds = setOf(event.hostId),
+            type = NotificationType.SOLO_REMINDER,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            message = "It starts in less than a day and nobody has joined yet. Invite who's coming"
         )
     }
 

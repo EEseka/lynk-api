@@ -15,6 +15,7 @@ object HangoutEventConstants {
     const val HANGOUT_STARTED_KEY = "hangout.started"
     const val HANGOUT_COMPLETION_REMINDER_KEY = "hangout.completion_reminder"
     const val HANGOUT_SPOT_REMINDER_KEY = "hangout.spot_reminder"
+    const val HANGOUT_SOLO_REMINDER_KEY = "hangout.solo_reminder"
     const val HANGOUT_PHOTOS_ADDED_KEY = "hangout.photos_added"
     const val HANGOUT_PAYMENT_RECEIVED_KEY = "hangout.payment_received"
     const val HANGOUT_REFUND_ISSUED_KEY = "hangout.refund_issued"
