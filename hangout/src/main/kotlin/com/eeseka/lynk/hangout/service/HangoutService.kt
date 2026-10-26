@@ -584,7 +584,7 @@ class HangoutService(
         val attendingCount = hangoutEntity.participants.count { it.rsvpStatus == RsvpStatus.ATTENDING }
 
         // Integer division leaves a remainder of at most a few kobo.
-        // It falls to the host rather than being spread around, so the guests' shares are identical and still sum to no more than the total.
+        // It falls to the host rather than being spread around, so the attendees' shares are identical and still sum to no more than the total.
         val costPerPersonKobo = totalCostKobo / attendingCount
 
         hangoutRepository.save(

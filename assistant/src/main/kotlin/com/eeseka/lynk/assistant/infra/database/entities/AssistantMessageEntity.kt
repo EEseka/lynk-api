@@ -8,6 +8,7 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
+import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -61,14 +62,8 @@ class AssistantMessageEntity(
     @Column(nullable = true)
     var failureReason: AssistantFailureReason? = null,
 
-    @Column(nullable = true)
-    var inputTokens: Int? = null,
-
-    @Column(nullable = true)
-    var outputTokens: Int? = null,
-
-    @Column(nullable = true)
-    var searchCount: Int? = null,
+    @Embedded
+    var usage: AssistantUsageEntity? = null,
 
     @OneToMany(
         mappedBy = "message",

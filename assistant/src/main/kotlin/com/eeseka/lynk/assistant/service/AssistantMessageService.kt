@@ -9,6 +9,7 @@ import com.eeseka.lynk.assistant.domain.model.AssistantMessageStatus
 import com.eeseka.lynk.assistant.domain.model.AssistantRecommendation
 import com.eeseka.lynk.assistant.infra.database.entities.AssistantMessageEntity
 import com.eeseka.lynk.assistant.infra.database.entities.AssistantSpotEntity
+import com.eeseka.lynk.assistant.infra.database.entities.AssistantUsageEntity
 import com.eeseka.lynk.assistant.infra.database.mappers.toAssistantMessage
 import com.eeseka.lynk.assistant.infra.database.mappers.toAssistantRecommendation
 import com.eeseka.lynk.assistant.infra.database.repositories.AssistantMessageRepository
@@ -54,8 +55,7 @@ class AssistantMessageService(
     fun finishAnswer(
         messageId: AssistantMessageId,
         answer: AssistantAnswer,
-        recommendations: List<AssistantRecommendation>,
-        searchCount: Int
+        recommendations: List<AssistantRecommendation>
     ) {
         val message = assistantMessageRepository.findByIdOrNull(messageId) ?: return
 
@@ -63,9 +63,13 @@ class AssistantMessageService(
             message.apply {
                 status = AssistantMessageStatus.ANSWERED
                 content = answer.content
-                inputTokens = answer.inputTokens
-                outputTokens = answer.outputTokens
-                this.searchCount = searchCount
+                usage = AssistantUsageEntity(
+                    inputTokens = answer.usage.inputTokens,
+                    cacheCreationInputTokens = answer.usage.cacheCreationInputTokens,
+                    cacheReadInputTokens = answer.usage.cacheReadInputTokens,
+                    outputTokens = answer.usage.outputTokens,
+                    searchCount = answer.usage.searchCount
+                )
                 recommendations.forEachIndexed { index, recommendation ->
                     val spot = recommendation.spot
                     spots.add(

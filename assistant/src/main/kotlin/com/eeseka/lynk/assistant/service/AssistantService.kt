@@ -211,9 +211,7 @@ class AssistantService(
             turn = turn,
             onEvent = onEvent,
             onFinished = onFinished,
-            saveAnswer = { answer ->
-                assistantMessageService.finishAnswer(messageId, answer, turn.recommendations, turn.searchCount)
-            },
+            saveAnswer = { answer -> assistantMessageService.finishAnswer(messageId, answer, turn.recommendations) },
             saveFailure = { reason -> assistantMessageService.failAnswer(messageId, reason) },
             release = {}
         )
@@ -296,10 +294,12 @@ class AssistantService(
                 )
                 discoverChatRepository.save(userId, startedChat.withMessage(answeredMessage))
                 logger.info(
-                    "Discover answer used {} input tokens, {} output tokens and {} searches",
-                    answer.inputTokens,
-                    answer.outputTokens,
-                    turn.searchCount
+                    "Discover answer used {} input tokens, {} cache write tokens, {} cache read tokens, {} output tokens and {} searches",
+                    answer.usage.inputTokens,
+                    answer.usage.cacheCreationInputTokens,
+                    answer.usage.cacheReadInputTokens,
+                    answer.usage.outputTokens,
+                    answer.usage.searchCount
                 )
             },
             saveFailure = { reason ->

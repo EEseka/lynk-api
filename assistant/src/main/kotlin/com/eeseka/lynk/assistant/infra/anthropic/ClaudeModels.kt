@@ -5,11 +5,11 @@ import ai.koog.prompt.llm.LLMProvider
 import ai.koog.prompt.llm.LLModel
 
 object ClaudeModels {
-    // Koog 1.3.0 stops at Haiku 4.5
-    // No Temperature because Haiku 5.5 rejects sampling settings with a 400
-    val Haiku_5_5 = LLModel(
+    // Koog 1.3.0 stops at Sonnet 5
+    // No Temperature because Sonnet 5.5 rejects sampling settings with a 400
+    val Sonnet_5_5 = LLModel(
         provider = LLMProvider.Anthropic,
-        id = "claude-haiku-5-5",
+        id = "claude-sonnet-5-5",
         capabilities = listOf(
             LLMCapability.Tools,
             LLMCapability.ToolChoice,
@@ -18,6 +18,6 @@ object ClaudeModels {
             LLMCapability.PromptCaching
         ),
         contextLength = 1_000_000,
-        maxOutputTokens = 64_000
+        maxOutputTokens = 128_000
     )
 }

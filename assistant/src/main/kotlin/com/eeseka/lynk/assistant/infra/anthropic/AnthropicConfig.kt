@@ -19,7 +19,7 @@ class AnthropicConfig(
             LLMProvider.Anthropic to AnthropicLLMClient(
                 apiKey = apiKey,
                 settings = AnthropicClientSettings(
-                    modelVersionsMap = mapOf(ClaudeModels.Haiku_5_5 to ClaudeModels.Haiku_5_5.id)
+                    modelVersionsMap = mapOf(ClaudeModels.Sonnet_5_5 to ClaudeModels.Sonnet_5_5.id)
                 )
             )
         )
