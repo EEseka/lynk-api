@@ -6,13 +6,12 @@ import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.service.HangoutParticipantService
 import com.eeseka.lynk.hangout.service.HangoutService
-import com.eeseka.lynk.payment.domain.exception.PaymentIllegalStateException
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
+import com.eeseka.lynk.payment.domain.model.PayoutStatus
 import com.eeseka.lynk.payment.domain.model.ProviderTransactionStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
-import com.eeseka.lynk.payment.infra.database.repositories.HangoutPayoutAccountRepository
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.PayoutRepository
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -23,7 +22,7 @@ import java.time.Instant
 @Service
 class PaymentReconciliationService(
     private val paymentRepository: PaymentRepository,
-    private val hangoutPayoutAccountRepository: HangoutPayoutAccountRepository,
+    private val payoutRepository: PayoutRepository,
     private val paystackClient: PaystackClient,
     private val paymentConfirmationService: PaymentConfirmationService,
     private val payoutService: PayoutService,
@@ -61,9 +60,8 @@ class PaymentReconciliationService(
 
     @Scheduled(fixedDelay = 30 * 60 * 1000)
     fun recoverRefundsNeverRequested() {
-        val settled = paymentRepository.findAllByStatusAndRefundStatusAndPaidAtAfter(
+        val settled = paymentRepository.findAllByStatusAndPaidAtAfter(
             status = PaymentStatus.SUCCESS,
-            refundStatus = RefundStatus.NONE,
             paidAt = Instant.now().minus(REFUND_RECOVERY_WINDOW)
         )
 
@@ -150,25 +148,22 @@ class PaymentReconciliationService(
     }
 
     private fun reconcilePayout(hangoutId: HangoutId) {
-        val payoutAccount = hangoutPayoutAccountRepository.findByHangoutId(hangoutId)
-            ?: throw PaymentIllegalStateException("This hangout has no payout account.")
-
-        val transferReference = payoutAccount.transferReference
-        if (transferReference == null) {
-            logger.error("Hangout {} is paying out but has no transfer reference, releasing it", hangoutId)
+        val payout = payoutRepository.findByHangoutIdAndStatus(hangoutId, PayoutStatus.IN_FLIGHT)
+        if (payout == null) {
+            logger.error("Hangout {} is paying out but has no transfer in flight, releasing it", hangoutId)
             hangoutService.recordPayoutOutcome(
                 hangoutId = hangoutId,
                 succeeded = false,
                 reference = null,
-                amountKobo = paymentRepository.sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+                amountKobo = paymentRepository.sumNetAmountByHangoutIdAndStatus(
                     hangoutId = hangoutId,
-                    status = PaymentStatus.SUCCESS,
-                    refundStatus = RefundStatus.NONE
+                    status = PaymentStatus.SUCCESS
                 )
             )
             return
         }
 
+        val transferReference = payout.reference
         val transfer = paystackClient.verifyTransfer(transferReference)
 
         when (transfer.status) {

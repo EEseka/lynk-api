@@ -33,7 +33,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Test
     fun `readies a hangout for payout when everybody paid by the deadline`() {
-        val hangout = arrangeHangout(paymentDeadline = anHourAgo(), guestHasPaid = true)
+        val hangout = arrangeHangout(paymentDeadline = anHourAgo(), attendeeHasPaid = true)
 
         hangoutService.resolvePaymentDeadlines()
 
@@ -42,7 +42,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Test
     fun `asks the host what to do when somebody did not pay`() {
-        val hangout = arrangeHangout(paymentDeadline = anHourAgo(), guestHasPaid = false)
+        val hangout = arrangeHangout(paymentDeadline = anHourAgo(), attendeeHasPaid = false)
 
         hangoutService.resolvePaymentDeadlines()
 
@@ -53,8 +53,8 @@ class HangoutScheduledSweepTest : IntegrationTest() {
     fun `ignores people who are not attending when counting who has paid`() {
         val hangout = arrangeHangout(
             paymentDeadline = anHourAgo(),
-            guestHasPaid = false,
-            guestRsvpStatus = RsvpStatus.DECLINED
+            attendeeHasPaid = false,
+            attendeeRsvpStatus = RsvpStatus.DECLINED
         )
 
         hangoutService.resolvePaymentDeadlines()
@@ -64,7 +64,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Test
     fun `leaves a deadline that has not arrived alone`() {
-        val hangout = arrangeHangout(paymentDeadline = inAnHour(), guestHasPaid = false)
+        val hangout = arrangeHangout(paymentDeadline = inAnHour(), attendeeHasPaid = false)
 
         hangoutService.resolvePaymentDeadlines()
 
@@ -75,7 +75,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
     fun `leaves a cancelled hangout out of the deadline sweep`() {
         val hangout = arrangeHangout(
             paymentDeadline = anHourAgo(),
-            guestHasPaid = false,
+            attendeeHasPaid = false,
             status = HangoutStatus.CANCELLED
         )
 
@@ -93,7 +93,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         val hangout = arrangeHangout(
             paymentState = PaymentState.AWAITING_HOST_DECISION,
             scheduledAt = anHourAgo(),
-            guestHasPaid = false
+            attendeeHasPaid = false
         )
 
         hangoutService.proceedWithHangoutsTheHostNeverDecided()
@@ -106,7 +106,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         val hangout = arrangeHangout(
             paymentState = PaymentState.AWAITING_HOST_DECISION,
             scheduledAt = inAnHour(),
-            guestHasPaid = false
+            attendeeHasPaid = false
         )
 
         hangoutService.proceedWithHangoutsTheHostNeverDecided()
@@ -120,7 +120,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
             paymentState = PaymentState.AWAITING_HOST_DECISION,
             scheduledAt = anHourAgo(),
             status = HangoutStatus.CANCELLED,
-            guestHasPaid = false
+            attendeeHasPaid = false
         )
 
         hangoutService.proceedWithHangoutsTheHostNeverDecided()
@@ -130,7 +130,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Test
     fun `starts a hangout whose time has come`() {
-        val hangout = arrangeHangout(scheduledAt = anHourAgo(), guestHasPaid = true)
+        val hangout = arrangeHangout(scheduledAt = anHourAgo(), attendeeHasPaid = true)
 
         hangoutService.transitionDueHangoutsToOngoing()
 
@@ -139,7 +139,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Test
     fun `leaves a hangout that has not started yet`() {
-        val hangout = arrangeHangout(scheduledAt = inAnHour(), guestHasPaid = true)
+        val hangout = arrangeHangout(scheduledAt = inAnHour(), attendeeHasPaid = true)
 
         hangoutService.transitionDueHangoutsToOngoing()
 
@@ -154,7 +154,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         val hangout = arrangeHangout(
             scheduledAt = anHourAgo(),
             status = HangoutStatus.VOTING,
-            guestHasPaid = true
+            attendeeHasPaid = true
         )
 
         hangoutService.transitionDueHangoutsToOngoing()
@@ -195,7 +195,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
     @Test
     fun `keeps a long past hangout somebody else joined`() {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(
             host = host,
             costPerPersonKobo = null,
@@ -203,7 +203,7 @@ class HangoutScheduledSweepTest : IntegrationTest() {
             participantCount = 2
         )
         fixtures.participant(hangout = hangout, user = host)
-        fixtures.participant(hangout = hangout, user = guest)
+        fixtures.participant(hangout = hangout, user = attendee)
 
         hangoutService.cleanupSoloUnpaidHangouts()
 
@@ -215,11 +215,11 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         paymentState: PaymentState = PaymentState.COLLECTING,
         paymentDeadline: Instant = inAnHour(),
         scheduledAt: Instant = Instant.now().plus(Duration.ofDays(3)),
-        guestHasPaid: Boolean,
-        guestRsvpStatus: RsvpStatus = RsvpStatus.ATTENDING
+        attendeeHasPaid: Boolean,
+        attendeeRsvpStatus: RsvpStatus = RsvpStatus.ATTENDING
     ): HangoutEntity {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(
             host = host,
             status = status,
@@ -231,9 +231,9 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         fixtures.participant(hangout = hangout, user = host, hasPaid = true)
         fixtures.participant(
             hangout = hangout,
-            user = guest,
-            rsvpStatus = guestRsvpStatus,
-            hasPaid = guestHasPaid
+            user = attendee,
+            rsvpStatus = attendeeRsvpStatus,
+            hasPaid = attendeeHasPaid
         )
 
         return hangout

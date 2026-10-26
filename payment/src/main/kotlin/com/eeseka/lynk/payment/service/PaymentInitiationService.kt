@@ -26,7 +26,7 @@ class PaymentInitiationService(
     /**
      * Deliberately not transactional. The row has to be committed before Paystack is asked to start the
      * charge: if the two shared a transaction, and it rolled back after the call, Paystack would hold a
-     * live charge against a reference this database has never heard of, and the guest's money would
+     * live charge against a reference this database has never heard of, and the attendee's money would
      * arrive with nothing here to attach it to.
      */
     fun initializePayment(userId: UserId, hangoutId: HangoutId): PaymentInitialization {

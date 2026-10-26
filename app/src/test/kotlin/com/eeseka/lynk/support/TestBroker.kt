@@ -5,6 +5,7 @@ import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.hangout.infra.messaging.HangoutUserEventListener
 import com.eeseka.lynk.notification.infra.messaging.NotificationHangoutEventListener
 import com.eeseka.lynk.notification.infra.messaging.NotificationUserEventListener
+import com.eeseka.lynk.payment.infra.messaging.HangoutRefundListener
 import org.mockito.ArgumentCaptor
 import org.mockito.BDDMockito.then
 import org.mockito.Mockito.atLeast
@@ -26,7 +27,8 @@ class TestBroker(
     private val rabbitTemplate: RabbitTemplate,
     private val hangoutUserEventListener: HangoutUserEventListener,
     private val notificationUserEventListener: NotificationUserEventListener,
-    private val notificationHangoutEventListener: NotificationHangoutEventListener
+    private val notificationHangoutEventListener: NotificationHangoutEventListener,
+    private val hangoutRefundListener: HangoutRefundListener
 ) {
 
     private var delivered = 0
@@ -46,7 +48,10 @@ class TestBroker(
                     notificationUserEventListener.handleUserEvent(event)
                 }
 
-                is HangoutEvent -> notificationHangoutEventListener.handleHangoutEvent(event)
+                is HangoutEvent -> {
+                    notificationHangoutEventListener.handleHangoutEvent(event)
+                    hangoutRefundListener.handleHangoutEvent(event)
+                }
             }
         }
 

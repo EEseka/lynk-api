@@ -12,17 +12,18 @@ import com.eeseka.lynk.payment.domain.model.PaymentStatus
 import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.RefundRepository
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
 
 @Service
 class RefundService(
     private val paymentRepository: PaymentRepository,
+    private val refundRepository: RefundRepository,
     private val paystackClient: PaystackClient,
     private val hangoutService: HangoutService,
     private val eventPublisher: EventPublisher
@@ -33,7 +34,6 @@ class RefundService(
         private val STUCK_REFUND_AFTER: Duration = Duration.ofHours(6L)
     }
 
-    @Transactional
     fun applyRefundOutcome(transactionReference: String, succeeded: Boolean) {
         val payment = paymentRepository.findByReference(transactionReference)
         if (payment == null) {
@@ -42,11 +42,25 @@ class RefundService(
             return
         }
 
-        paymentRepository.save(
-            payment.apply {
-                refundStatus = if (succeeded) RefundStatus.PROCESSED else RefundStatus.FAILED
-                if (succeeded) refundedAt = Instant.now()
-            }
+        val settledAt = Instant.now()
+        // Zero rows mean no refund of this payment is in flight, so the provider is repeating itself
+        val settled = refundRepository.settleInFlight(
+            paymentId = payment.id!!,
+            newStatus = if (succeeded) RefundStatus.PROCESSED else RefundStatus.FAILED,
+            failureReason = if (succeeded) null else "The provider reported the refund as failed",
+            settledAt = settledAt,
+            inFlightStatus = RefundStatus.REQUESTED
+        ) == 1
+        if (!settled) {
+            logger.info("No refund of {} is in flight, so this outcome was already recorded", payment.reference)
+            return
+        }
+
+        paymentRepository.transitionStatus(
+            paymentId = payment.id!!,
+            newStatus = if (succeeded) PaymentStatus.REFUNDED else PaymentStatus.REFUND_FAILED,
+            expectedStatus = PaymentStatus.REFUNDING,
+            updatedAt = settledAt
         )
 
         if (!succeeded) return
@@ -77,13 +91,12 @@ class RefundService(
             return
         }
 
-        val refundable = paymentRepository.findAllByHangoutIdAndStatusAndRefundStatus(
+        val refundable = paymentRepository.findAllByHangoutIdAndStatus(
             hangoutId = hangoutId,
-            status = PaymentStatus.SUCCESS,
-            refundStatus = RefundStatus.NONE
+            status = PaymentStatus.SUCCESS
         )
 
-        refundable.forEach { refund(it) }
+        refundable.forEach { refund(it, expectedStatus = PaymentStatus.SUCCESS) }
 
         if (refundable.isNotEmpty()) {
             logger.info("Requested {} refunds for cancelled hangout {}", refundable.size, hangoutId)
@@ -96,20 +109,19 @@ class RefundService(
             return
         }
 
-        val payment = paymentRepository.findByHangoutIdAndUserIdAndStatusAndRefundStatus(
+        val payment = paymentRepository.findByHangoutIdAndUserIdAndStatus(
             hangoutId = hangoutId,
             userId = userId,
-            status = PaymentStatus.SUCCESS,
-            refundStatus = RefundStatus.NONE
+            status = PaymentStatus.SUCCESS
         ) ?: return
 
-        refund(payment)
+        refund(payment, expectedStatus = PaymentStatus.SUCCESS)
     }
 
     /**
      * [alreadyClaimed] is for a payment whose refund was claimed by the transaction that recorded it:
-     * [refund] would find the row already at REQUESTED, read that as somebody else's refund on its way,
-     * and send nothing at all.
+     * [refund] would find it already REFUNDING, read that as somebody else's refund on its way, and send
+     * nothing at all.
      */
     fun refundPaymentByReference(reference: String, alreadyClaimed: Boolean = false) {
         val payment = paymentRepository.findByReference(reference)
@@ -131,12 +143,18 @@ class RefundService(
             return
         }
 
-        refund(payment)
+        // Money we hold, or a short payment we refused to keep. Anything else is already going back or gone
+        if (payment.status != PaymentStatus.SUCCESS && payment.status != PaymentStatus.FAILED) {
+            logger.info("Payment {} is {}, so there is nothing more to send back", payment.reference, payment.status)
+            return
+        }
+
+        refund(payment, expectedStatus = payment.status)
     }
 
     @Scheduled(fixedDelay = 15 * 60 * 1000)
     fun retryFailedRefunds() {
-        val stuckRefunds = paymentRepository.findAllByRefundStatus(RefundStatus.FAILED)
+        val stuckRefunds = paymentRepository.findAllByStatus(PaymentStatus.REFUND_FAILED)
 
         stuckRefunds.forEach { payment ->
             try {
@@ -153,8 +171,8 @@ class RefundService(
 
     @Scheduled(fixedDelay = 60 * 60 * 1000)
     fun reportRefundsStillInFlight() {
-        val stuck = paymentRepository.findAllByRefundStatusAndUpdatedAtBefore(
-            refundStatus = RefundStatus.REQUESTED,
+        val stuck = paymentRepository.findAllByStatusAndUpdatedAtBefore(
+            status = PaymentStatus.REFUNDING,
             before = Instant.now().minus(STUCK_REFUND_AFTER)
         )
 
@@ -175,15 +193,16 @@ class RefundService(
             return
         }
 
-        refund(payment, expectedStatus = RefundStatus.FAILED)
+        refund(payment, expectedStatus = PaymentStatus.REFUND_FAILED)
     }
 
-    private fun refund(payment: PaymentEntity, expectedStatus: RefundStatus = RefundStatus.NONE) {
+    private fun refund(payment: PaymentEntity, expectedStatus: PaymentStatus) {
         // One row changed means this call is the one that claimed the refund; zero means somebody else claimed it first and is already sending the money back.
-        val claimed = paymentRepository.transitionRefundStatus(
+        val claimed = paymentRepository.transitionStatus(
             paymentId = payment.id!!,
-            newStatus = RefundStatus.REQUESTED,
-            expectedStatus = expectedStatus
+            newStatus = PaymentStatus.REFUNDING,
+            expectedStatus = expectedStatus,
+            updatedAt = Instant.now()
         ) == 1
 
         if (!claimed) {
@@ -195,6 +214,14 @@ class RefundService(
     }
 
     private fun sendRefund(payment: PaymentEntity) {
+        // Recorded before the provider is called, so every attempt is kept whatever it comes to
+        refundRepository.insert(
+            paymentId = payment.id!!,
+            amountKobo = payment.netAmountKobo,
+            status = RefundStatus.REQUESTED,
+            createdAt = Instant.now()
+        )
+
         try {
             paystackClient.refund(
                 transactionReference = payment.reference,
@@ -202,7 +229,7 @@ class RefundService(
             )
         } catch (e: RefundRejectedException) {
             logger.error("Refund for {} was refused: {}", payment.reference, e.message)
-            markRefundFailed(payment)
+            markRefundFailed(payment, reason = e.message?.take(255) ?: "The provider refused the refund")
         } catch (e: PaystackUnavailableException) {
             logger.error(
                 "Refund for {} went unanswered, leaving it in flight to be settled by hand: {}",
@@ -211,8 +238,21 @@ class RefundService(
         }
     }
 
-    private fun markRefundFailed(payment: PaymentEntity) {
-        paymentRepository.failRefund(payment.id!!)
+    private fun markRefundFailed(payment: PaymentEntity, reason: String) {
+        val failedAt = Instant.now()
+        refundRepository.settleInFlight(
+            paymentId = payment.id!!,
+            newStatus = RefundStatus.FAILED,
+            failureReason = reason,
+            settledAt = failedAt,
+            inFlightStatus = RefundStatus.REQUESTED
+        )
+        paymentRepository.transitionStatus(
+            paymentId = payment.id!!,
+            newStatus = PaymentStatus.REFUND_FAILED,
+            expectedStatus = PaymentStatus.REFUNDING,
+            updatedAt = failedAt
+        )
     }
 
     /**

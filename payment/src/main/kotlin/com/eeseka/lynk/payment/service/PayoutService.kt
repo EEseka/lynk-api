@@ -7,10 +7,12 @@ import com.eeseka.lynk.payment.domain.exception.PaymentIllegalStateException
 import com.eeseka.lynk.payment.domain.exception.PayoutRejectedException
 import com.eeseka.lynk.payment.domain.exception.PaystackUnavailableException
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
+import com.eeseka.lynk.payment.domain.model.PayoutStatus
 import com.eeseka.lynk.payment.infra.database.entities.HangoutPayoutAccountEntity
+import com.eeseka.lynk.payment.infra.database.entities.PayoutEntity
 import com.eeseka.lynk.payment.infra.database.repositories.HangoutPayoutAccountRepository
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.PayoutRepository
 import com.eeseka.lynk.payment.infra.paystack.PaystackClient
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -24,6 +26,7 @@ import java.util.*
 class PayoutService(
     private val paymentRepository: PaymentRepository,
     private val hangoutPayoutAccountRepository: HangoutPayoutAccountRepository,
+    private val payoutRepository: PayoutRepository,
     private val paystackClient: PaystackClient,
     private val hangoutService: HangoutService
 ) {
@@ -35,30 +38,35 @@ class PayoutService(
 
     @Transactional
     fun applyTransferOutcome(transferReference: String, succeeded: Boolean, reason: String?) {
-        val payoutAccount = hangoutPayoutAccountRepository.findByTransferReference(transferReference)
-        if (payoutAccount == null) {
+        val payout = payoutRepository.findByReference(transferReference)
+        if (payout == null) {
             logger.warn("Transfer outcome for a reference we do not know: {}", transferReference)
             return
         }
+        if (payout.status != PayoutStatus.IN_FLIGHT) {
+            logger.info("Transfer {} was already recorded as {}, nothing to do", transferReference, payout.status)
+            return
+        }
 
-        hangoutPayoutAccountRepository.save(
-            payoutAccount.apply {
-                if (succeeded) {
-                    paidOutAt = Instant.now()
-                    payoutFailureReason = null
-                    eraseBankDetails()
-                } else {
-                    payoutFailureReason = reason?.take(255) ?: "The transfer did not go through"
-                    this.transferReference = null
-                }
+        payoutRepository.save(
+            payout.apply {
+                status = if (succeeded) PayoutStatus.SUCCEEDED else PayoutStatus.FAILED
+                if (!succeeded) failureReason = reason?.take(255) ?: "The transfer did not go through"
+                settledAt = Instant.now()
             }
         )
 
+        if (succeeded) {
+            hangoutPayoutAccountRepository.findByHangoutId(payout.hangoutId)?.let { payoutAccount ->
+                hangoutPayoutAccountRepository.save(payoutAccount.apply { eraseBankDetails() })
+            }
+        }
+
         hangoutService.recordPayoutOutcome(
-            hangoutId = payoutAccount.hangoutId,
+            hangoutId = payout.hangoutId,
             succeeded = succeeded,
             reference = transferReference,
-            amountKobo = collectedKoboFor(payoutAccount.hangoutId)
+            amountKobo = payout.amountKobo
         )
     }
 
@@ -81,18 +89,22 @@ class PayoutService(
         val cutoff = Instant.now().minus(STUCK_PAYOUT_AFTER)
 
         hangoutService.findHangoutIdsWithPayoutFailed().forEach { hangoutId ->
-            val payoutAccount = hangoutPayoutAccountRepository.findByHangoutId(hangoutId) ?: run {
-                logger.error("Hangout {} has a failed payout but no payout account at all", hangoutId)
+            val failedPayout = payoutRepository.findFirstByHangoutIdAndStatusOrderByCreatedAtDesc(
+                hangoutId = hangoutId,
+                status = PayoutStatus.FAILED
+            ) ?: run {
+                logger.error("Hangout {} has a failed payout but no failed transfer recorded", hangoutId)
                 return@forEach
             }
-            if (payoutAccount.updatedAt.isAfter(cutoff)) return@forEach
+            val failedAt = failedPayout.settledAt ?: failedPayout.createdAt
+            if (failedAt.isAfter(cutoff)) return@forEach
 
             logger.error(
                 "Payout for hangout {} was refused at {} and is still unpaid - reason: {} - host: {}",
                 hangoutId,
-                payoutAccount.updatedAt,
-                payoutAccount.payoutFailureReason ?: "not recorded",
-                payoutAccount.hostId
+                failedAt,
+                failedPayout.failureReason ?: "not recorded",
+                hangoutPayoutAccountRepository.findByHangoutId(hangoutId)?.hostId ?: "unknown"
             )
         }
     }
@@ -131,39 +143,41 @@ class PayoutService(
             return
         }
 
-        val transferReference = payoutAccount.transferReference ?: "lynk_payout_${UUID.randomUUID()}"
-
-        hangoutPayoutAccountRepository.updateTransferReferenceByHangoutId(
-            hangoutId = hangoutId,
-            transferReference = transferReference,
-            updatedAt = Instant.now()
-        )
+        // A sweep that stopped after recording the transfer but before marking the hangout left it in flight,
+        // and Paystack takes the same reference only once, so it is sent again as it was
+        val payout = payoutRepository.findByHangoutIdAndStatus(hangoutId, PayoutStatus.IN_FLIGHT)
+            ?: payoutRepository.save(
+                PayoutEntity(
+                    hangoutId = hangoutId,
+                    reference = "lynk_payout_${UUID.randomUUID()}",
+                    amountKobo = collectedKobo
+                )
+            )
         hangoutService.markPayoutInFlight(hangoutId)
 
         try {
             paystackClient.transfer(
                 recipientCode = payoutAccount.recipientCode,
-                amountKobo = collectedKobo,
-                reference = transferReference,
+                amountKobo = payout.amountKobo,
+                reference = payout.reference,
                 reason = "Lynk hangout payout"
             )
         } catch (e: PayoutRejectedException) {
-            // These two writes are not one transaction and do not need to be. If the second never
-            // runs, the hangout stays PAYING_OUT with no transfer reference, which is the exact shape
+            // These two writes are not one transaction and do not need to be. If the second never runs,
+            // the hangout stays PAYING_OUT with no transfer in flight, which is the exact shape
             // reconcilePayout looks for and releases.
-            hangoutPayoutAccountRepository.save(
-                payoutAccount.apply {
-                    payoutFailureReason = e.message?.take(255)
-                    // Paystack will not accept the same reference twice, so a retry that reused this one
-                    // would be refused for that reason alone and could never get through.
-                    this.transferReference = null
+            payoutRepository.save(
+                payout.apply {
+                    status = PayoutStatus.FAILED
+                    failureReason = e.message?.take(255)
+                    settledAt = Instant.now()
                 }
             )
             hangoutService.recordPayoutOutcome(
                 hangoutId = hangoutId,
                 succeeded = false,
-                reference = transferReference,
-                amountKobo = collectedKobo
+                reference = payout.reference,
+                amountKobo = payout.amountKobo
             )
 
             logger.error("Payout for hangout {} was refused: {}", hangoutId, e.message)
@@ -176,17 +190,16 @@ class PayoutService(
             return
         }
 
-        logger.info("Payout of {} kobo accepted for hangout {}", collectedKobo, hangoutId)
+        logger.info("Payout of {} kobo accepted for hangout {}", payout.amountKobo, hangoutId)
     }
 
     private fun collectedKoboFor(hangoutId: HangoutId): Long =
-        paymentRepository.sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+        paymentRepository.sumNetAmountByHangoutIdAndStatus(
             hangoutId = hangoutId,
-            status = PaymentStatus.SUCCESS,
-            refundStatus = RefundStatus.NONE
+            status = PaymentStatus.SUCCESS
         )
 
-    // Keeps the row and its payout reference, but nothing that identifies the host's bank account.
+    // Keeps the row, but nothing that identifies the host's bank account.
     private fun HangoutPayoutAccountEntity.eraseBankDetails() {
         recipientCode = ""
         bankName = null

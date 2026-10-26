@@ -330,7 +330,7 @@ class HangoutJourneyTest : IntegrationTest() {
         }.andExpect { status { isNotFound() } }
     }
 
-    /** A save with nothing changed would flash "the host updated this" on every guest's open screen. */
+    /** A save with nothing changed would flash "the host updated this" on every participant's open screen. */
     @Test
     fun `tells nobody when the host saves the hangout without changing anything`() {
         val host = signIn("ada")

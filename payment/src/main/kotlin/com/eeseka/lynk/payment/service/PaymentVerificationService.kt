@@ -50,7 +50,7 @@ class PaymentVerificationService(
             }
 
             // Paystack is still working on it or would not say. Either way there is no answer to give yet,
-            // and the reconciliation sweep will settle it if the guest walks away now.
+            // and the reconciliation sweep will settle it if the attendee walks away now.
             ProviderTransactionStatus.PENDING, ProviderTransactionStatus.UNKNOWN -> PaymentStatus.PENDING
         }
     }
@@ -59,7 +59,12 @@ class PaymentVerificationService(
     private fun confirmAndReadStatus(reference: String, paidAmountKobo: Long?): PaymentStatus {
         paymentConfirmationService.confirm(reference = reference, paidAmountKobo = paidAmountKobo)
 
-        return paymentRepository.findByReference(reference)?.status ?: PaymentStatus.PENDING
+        return when (val status = paymentRepository.findByReference(reference)?.status) {
+            // The charge went through, so the payer is told SUCCESS; any refund of it reaches them as its own notification
+            PaymentStatus.REFUNDING, PaymentStatus.REFUND_FAILED, PaymentStatus.REFUNDED -> PaymentStatus.SUCCESS
+            null -> PaymentStatus.PENDING
+            else -> status
+        }
     }
 
     private fun failPayment(reference: String) {

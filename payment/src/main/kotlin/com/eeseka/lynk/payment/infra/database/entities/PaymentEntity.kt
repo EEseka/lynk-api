@@ -4,7 +4,6 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.PaymentId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -56,16 +55,6 @@ class PaymentEntity(
 
     @Column(nullable = true, length = 255)
     var failureReason: String? = null,
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    var refundStatus: RefundStatus = RefundStatus.NONE,
-
-    @Column(nullable = true)
-    var refundedAmountKobo: Long? = null,
-
-    @Column(nullable = true)
-    var refundedAt: Instant? = null,
 
     @CreationTimestamp
     var createdAt: Instant = Instant.now(),
