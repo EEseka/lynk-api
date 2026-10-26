@@ -78,7 +78,7 @@ class AssistantToolService(
         ),
         ToolDescriptor(
             name = AssistantToolName.RECOMMEND_SPOT.wireName,
-            description = "Show one place to the user as a card they can open, save or suggest. " +
+            description = "Show one place to the user as a card. " +
                     "Call it once per place you recommend, at most $MAX_RECOMMENDATIONS_PER_ANSWER times per answer. " +
                     "Only for places from your searches, the ballot or earlier cards.",
             requiredParameters = listOf(
