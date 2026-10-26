@@ -86,7 +86,7 @@ class DeadlineDecisionJourneyTest : IntegrationTest() {
         assertEquals(PaymentState.READY_FOR_PAYOUT, hangoutService.findPaymentState(paid.hangoutId))
     }
 
-    /** The guest never paid, so they lose their seat and the hangout goes ahead without them. */
+    /** The attendee never paid, so they lose their seat and the hangout goes ahead without them. */
     @Test
     fun `drops the people who never paid`() {
         val paid = arrangeHangoutAwaitingDecision()
@@ -96,7 +96,7 @@ class DeadlineDecisionJourneyTest : IntegrationTest() {
 
         assertEquals(PaymentState.READY_FOR_PAYOUT, hangoutService.findPaymentState(paid.hangoutId))
         mockMvc.get("/api/hangouts/${paid.hangoutId}") {
-            authenticatedAs(paid.guest)
+            authenticatedAs(paid.attendee)
         }.andExpect { status { isNotFound() } }
     }
 
@@ -114,7 +114,7 @@ class DeadlineDecisionJourneyTest : IntegrationTest() {
     fun `lets nobody but the host decide`() {
         val paid = arrangeHangoutAwaitingDecision()
 
-        decide(paid.guest, paid.hangoutId, DeadlineDecision.PROCEED_ANYWAY)
+        decide(paid.attendee, paid.hangoutId, DeadlineDecision.PROCEED_ANYWAY)
             .andExpect { status { isForbidden() } }
     }
 

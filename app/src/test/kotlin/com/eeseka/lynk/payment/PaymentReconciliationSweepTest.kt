@@ -8,12 +8,12 @@ import com.eeseka.lynk.hangout.infra.database.entities.HangoutUserEntity
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRepository
 import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
+import com.eeseka.lynk.payment.domain.model.PayoutStatus
 import com.eeseka.lynk.payment.domain.model.ProviderTransaction
 import com.eeseka.lynk.payment.domain.model.ProviderTransactionStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
-import com.eeseka.lynk.payment.infra.database.repositories.HangoutPayoutAccountRepository
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.PayoutRepository
 import com.eeseka.lynk.payment.service.PaymentReconciliationService
 import com.eeseka.lynk.support.IntegrationTest
 import org.junit.jupiter.api.Test
@@ -26,7 +26,6 @@ import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -50,7 +49,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
     private lateinit var paymentRepository: PaymentRepository
 
     @Autowired
-    private lateinit var payoutAccountRepository: HangoutPayoutAccountRepository
+    private lateinit var payoutRepository: PayoutRepository
 
     @Autowired
     private lateinit var participantRepository: HangoutParticipantRepository
@@ -75,7 +74,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
             userId = payment.userId
         )
         assertNotNull(participant)
-        assertTrue(participant.hasPaid, "the sweep confirmed the money but never seated the guest")
+        assertTrue(participant.hasPaid, "the sweep confirmed the money but never seated the attendee")
     }
 
     @Test
@@ -133,7 +132,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
 
         reconciliationService.recoverRefundsNeverRequested()
 
-        assertEquals(RefundStatus.REQUESTED, paymentRepository.findByReference(payment.reference)?.refundStatus)
+        assertEquals(PaymentStatus.REFUNDING, paymentRepository.findByReference(payment.reference)?.status)
     }
 
     @Test
@@ -142,37 +141,35 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
 
         reconciliationService.recoverRefundsNeverRequested()
 
-        assertEquals(RefundStatus.REQUESTED, paymentRepository.findByReference(payment.reference)?.refundStatus)
+        assertEquals(PaymentStatus.REFUNDING, paymentRepository.findByReference(payment.reference)?.status)
     }
 
     @Test
-    fun `keeps money for a guest who is still coming`() {
+    fun `keeps money for an attendee who is still coming`() {
         val payment = arrangeSettledPayment()
 
         reconciliationService.recoverRefundsNeverRequested()
 
-        assertEquals(RefundStatus.NONE, paymentRepository.findByReference(payment.reference)?.refundStatus)
+        assertEquals(PaymentStatus.SUCCESS, paymentRepository.findByReference(payment.reference)?.status)
     }
 
     /**
-     * Somebody who paid, was sent their money back, and was invited again owns two successful payments:
-     * the old refunded one and the live one. The refunded one is older, so reading the oldest success as
-     * the payment that bought the seat sends back the only money we are actually holding.
+     * Somebody who paid, was sent their money back, and was invited again owns two payments: the old
+     * refunded one and the live one. Only the live one is money we are holding, and it must stay.
      */
     @Test
-    fun `keeps money for a guest who paid again after being refunded`() {
-        val arranged = arrangeHangoutWithGuest()
+    fun `keeps money for an attendee who paid again after being refunded`() {
+        val arranged = arrangeHangoutWithAttendee()
         fixtures.payment(
             hangoutId = arranged.hangout.id!!,
-            userId = arranged.guest.userId,
+            userId = arranged.attendee.userId,
             amountKobo = AMOUNT_KOBO,
-            status = PaymentStatus.SUCCESS,
-            refundStatus = RefundStatus.PROCESSED,
+            status = PaymentStatus.REFUNDED,
             paidAt = Instant.now().minus(Duration.ofHours(6))
         )
         val current = fixtures.payment(
             hangoutId = arranged.hangout.id!!,
-            userId = arranged.guest.userId,
+            userId = arranged.attendee.userId,
             amountKobo = AMOUNT_KOBO,
             status = PaymentStatus.SUCCESS,
             paidAt = Instant.now().minus(Duration.ofHours(1))
@@ -181,8 +178,8 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
         reconciliationService.recoverRefundsNeverRequested()
 
         assertEquals(
-            RefundStatus.NONE,
-            paymentRepository.findByReference(current.reference)?.refundStatus,
+            PaymentStatus.SUCCESS,
+            paymentRepository.findByReference(current.reference)?.status,
             "the sweep sent back the payment that bought the seat"
         )
     }
@@ -200,7 +197,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
 
         reconciliationService.recoverRefundsNeverRequested()
 
-        assertEquals(RefundStatus.NONE, paymentRepository.findByReference(payment.reference)?.refundStatus)
+        assertEquals(PaymentStatus.SUCCESS, paymentRepository.findByReference(payment.reference)?.status)
     }
 
     @Test
@@ -212,7 +209,9 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
         reconciliationService.reconcileStalePayouts()
 
         assertEquals(PaymentState.PAID_OUT, hangoutService.findPaymentState(hangout.id!!))
-        assertNotNull(payoutAccountRepository.findByHangoutId(hangout.id!!)?.paidOutAt)
+        val payout = payoutRepository.findByReference(TRANSFER_REFERENCE)
+        assertEquals(PayoutStatus.SUCCEEDED, payout?.status)
+        assertNotNull(payout?.settledAt)
     }
 
     @Test
@@ -224,9 +223,8 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
         reconciliationService.reconcileStalePayouts()
 
         assertEquals(PaymentState.PAYOUT_FAILED, hangoutService.findPaymentState(hangout.id!!))
-        val payoutAccount = payoutAccountRepository.findByHangoutId(hangout.id!!)
-        assertNotNull(payoutAccount)
-        assertNull(payoutAccount.transferReference, "a failed transfer's reference must not be reused")
+        // Recorded as failed, so a retry sends a new transfer rather than the reference Paystack would refuse
+        assertEquals(PayoutStatus.FAILED, payoutRepository.findByReference(TRANSFER_REFERENCE)?.status)
     }
 
     /**
@@ -235,7 +233,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
      */
     @Test
     fun `releases a payout that was never actually sent`() {
-        val hangout = arrangePayoutInFlight(transferReference = null)
+        val hangout = arrangePayoutInFlight(isTransferInFlight = false)
 
         reconciliationService.reconcileStalePayouts()
 
@@ -244,10 +242,10 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
     }
 
     private fun arrangeStalePayment(age: Duration = Duration.ofHours(1)): PaymentEntity {
-        val arranged = arrangeHangoutWithGuest()
+        val arranged = arrangeHangoutWithAttendee()
         val payment = fixtures.payment(
             hangoutId = arranged.hangout.id!!,
-            userId = arranged.guest.userId,
+            userId = arranged.attendee.userId,
             amountKobo = AMOUNT_KOBO
         )
         fixtures.agePayment(payment, createdAt = Instant.now().minus(age))
@@ -260,7 +258,7 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
         rsvpStatus: RsvpStatus = RsvpStatus.ATTENDING,
         paymentState: PaymentState = PaymentState.COLLECTING
     ): PaymentEntity {
-        val arranged = arrangeHangoutWithGuest(
+        val arranged = arrangeHangoutWithAttendee(
             hangoutStatus = hangoutStatus,
             rsvpStatus = rsvpStatus,
             paymentState = paymentState
@@ -268,38 +266,37 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
 
         return fixtures.payment(
             hangoutId = arranged.hangout.id!!,
-            userId = arranged.guest.userId,
+            userId = arranged.attendee.userId,
             amountKobo = AMOUNT_KOBO,
             status = PaymentStatus.SUCCESS,
             paidAt = Instant.now().minus(Duration.ofHours(2))
         )
     }
 
-    private fun arrangePayoutInFlight(transferReference: String? = TRANSFER_REFERENCE): HangoutEntity {
-        val arranged = arrangeHangoutWithGuest(paymentState = PaymentState.PAYING_OUT)
+    private fun arrangePayoutInFlight(isTransferInFlight: Boolean = true): HangoutEntity {
+        val arranged = arrangeHangoutWithAttendee(paymentState = PaymentState.PAYING_OUT)
         fixtures.payment(
             hangoutId = arranged.hangout.id!!,
-            userId = arranged.guest.userId,
+            userId = arranged.attendee.userId,
             amountKobo = AMOUNT_KOBO,
             status = PaymentStatus.SUCCESS,
             paidAt = Instant.now()
         )
-        fixtures.payoutAccount(
-            hangout = arranged.hangout,
-            host = arranged.host,
-            transferReference = transferReference
-        )
+        fixtures.payoutAccount(hangout = arranged.hangout, host = arranged.host)
+        if (isTransferInFlight) {
+            fixtures.payout(hangoutId = arranged.hangout.id!!, reference = TRANSFER_REFERENCE, amountKobo = AMOUNT_KOBO)
+        }
 
         return arranged.hangout
     }
 
-    private fun arrangeHangoutWithGuest(
+    private fun arrangeHangoutWithAttendee(
         hangoutStatus: HangoutStatus = HangoutStatus.SCHEDULED,
         rsvpStatus: RsvpStatus = RsvpStatus.ATTENDING,
         paymentState: PaymentState = PaymentState.COLLECTING
     ): ArrangedHangout {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(
             host = host,
             status = hangoutStatus,
@@ -307,14 +304,14 @@ class PaymentReconciliationSweepTest : IntegrationTest() {
             paymentState = paymentState
         )
         fixtures.participant(hangout = hangout, user = host)
-        fixtures.participant(hangout = hangout, user = guest, rsvpStatus = rsvpStatus)
+        fixtures.participant(hangout = hangout, user = attendee, rsvpStatus = rsvpStatus)
 
-        return ArrangedHangout(hangout = hangout, host = host, guest = guest)
+        return ArrangedHangout(hangout = hangout, host = host, attendee = attendee)
     }
 
     private data class ArrangedHangout(
         val hangout: HangoutEntity,
         val host: HangoutUserEntity,
-        val guest: HangoutUserEntity
+        val attendee: HangoutUserEntity
     )
 }

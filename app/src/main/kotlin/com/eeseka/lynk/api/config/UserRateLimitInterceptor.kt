@@ -3,6 +3,7 @@ package com.eeseka.lynk.api.config
 import com.eeseka.lynk.common.api.config.UserRateLimit
 import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
@@ -19,6 +20,8 @@ class UserRateLimitInterceptor(
 ) : HandlerInterceptor {
 
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
+        if (request.dispatcherType == DispatcherType.ASYNC) return true
+
         if (handler is HandlerMethod && applyLimit) {
             val annotation = handler.getMethodAnnotation(UserRateLimit::class.java)
             if (annotation != null) {

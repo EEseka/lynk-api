@@ -8,6 +8,7 @@ import com.eeseka.lynk.spot.domain.model.PaginatedSpots
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.SpotCategory
+import com.eeseka.lynk.spot.domain.model.TrendingSpots
 import com.eeseka.lynk.spot.infra.database.entities.SavedSpotEntity
 import com.eeseka.lynk.spot.infra.database.mappers.toSpot
 import com.eeseka.lynk.spot.infra.database.repositories.SavedSpotRepository
@@ -27,9 +28,9 @@ class SpotService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
-    fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int, userId: UserId): List<Spot> {
-        val rawSpots = googlePlacesClient.getTrendingSpots(latitude, longitude, limit)
-        return enrichWithSavedState(rawSpots, userId)
+    fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int, userId: UserId): TrendingSpots {
+        val trending = googlePlacesClient.getTrendingSpots(latitude, longitude, limit)
+        return trending.copy(spots = enrichWithSavedState(trending.spots, userId))
     }
 
     fun getTopSpots(city: String, userId: UserId): List<Spot> {

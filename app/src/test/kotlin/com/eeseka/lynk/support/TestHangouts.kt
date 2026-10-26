@@ -47,14 +47,14 @@ class TestHangouts(
         deadline: Instant = Instant.now().plus(Duration.ofDays(2))
     ): PaidHangout {
         val host = accounts.signIn(email = "ada@lynk.test", displayName = "Ada", username = "ada")
-        val guest = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
+        val attendee = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
         val hangout = scheduled(host)
 
-        invite(host, hangout.id, guest)
-        accept(guest, hangout.id)
+        invite(host, hangout.id, attendee)
+        accept(attendee, hangout.id)
         enablePayments(host, hangout.id, totalCostKobo, deadline)
 
-        return PaidHangout(hangoutId = hangout.id, host = host, guest = guest)
+        return PaidHangout(hangoutId = hangout.id, host = host, attendee = attendee)
     }
 
     /**
@@ -149,9 +149,9 @@ class TestHangouts(
     }
 }
 
-/** A scheduled hangout, its host, and one guest who is attending and owes a share. */
+/** A scheduled hangout, its host, and one attendee who is attending and owes a share. */
 data class PaidHangout(
     val hangoutId: HangoutId,
     val host: TestAccount,
-    val guest: TestAccount
+    val attendee: TestAccount
 )

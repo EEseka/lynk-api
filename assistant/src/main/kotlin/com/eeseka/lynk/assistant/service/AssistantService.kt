@@ -12,10 +12,9 @@ import com.eeseka.lynk.assistant.domain.model.AssistantAnswer
 import com.eeseka.lynk.assistant.domain.model.AssistantFailureReason
 import com.eeseka.lynk.assistant.domain.model.AssistantMessage
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
+import com.eeseka.lynk.assistant.domain.model.AssistantMessageStatus
 import com.eeseka.lynk.assistant.domain.model.AssistantStreamEvent
 import com.eeseka.lynk.assistant.domain.model.DiscoverChat
-import com.eeseka.lynk.assistant.domain.model.DiscoverChatMessage
-import com.eeseka.lynk.assistant.domain.model.DiscoverChatSpot
 import com.eeseka.lynk.assistant.infra.redis.DiscoverChatRepository
 import com.eeseka.lynk.assistant.service.agent.AssistantAgent
 import com.eeseka.lynk.assistant.service.agent.AssistantPrompts
@@ -122,6 +121,29 @@ class AssistantService(
         return assistantMessageService.getMessages(hangoutId, userId, before, pageSize)
     }
 
+    fun getDiscoverMessages(userId: UserId, discoverChatId: DiscoverChatId): List<AssistantMessage> {
+        val chat = discoverChatRepository.find(userId, discoverChatId) ?: throw DiscoverChatExpiredException()
+        if (chat.messages.none { it.status == AssistantMessageStatus.PENDING }) return chat.messages.asReversed()
+
+        // An answer that a stopped server left pending is failed and refunded like a hangout one, under the lock so only once
+        if (!discoverChatRepository.tryStartAnswering(userId)) return chat.messages.asReversed() // Still being written
+        try {
+            val current = discoverChatRepository.find(userId, discoverChatId) ?: throw DiscoverChatExpiredException()
+            val stuck = current.messages.firstOrNull { it.status == AssistantMessageStatus.PENDING }
+                ?: return current.messages.asReversed()
+
+            val failedChat = current.withMessage(
+                stuck.copy(status = AssistantMessageStatus.FAILED, failureReason = AssistantFailureReason.ERROR)
+            )
+            discoverChatRepository.save(userId, failedChat)
+            userRateLimiter.refund(userId, SEND_MESSAGE_ROUTE)
+            logger.info("Failed and refunded a Discover answer left unfinished")
+            return failedChat.messages.asReversed()
+        } finally {
+            discoverChatRepository.finishAnswering(userId)
+        }
+    }
+
     fun getMessageCount(userId: UserId, hangoutId: HangoutId): Long {
         return assistantMessageService.getMessageCount(hangoutId, userId)
     }
@@ -224,33 +246,66 @@ class AssistantService(
             throw e
         }
 
-        val prompt = AssistantPrompts.discoverPrompt(zoneId = zoneId, history = chat.messages, question = question)
+        val questionMessage = AssistantMessage(
+            id = UUID.randomUUID(),
+            role = AssistantMessageRole.USER,
+            status = null,
+            content = question,
+            failureReason = null,
+            recommendations = emptyList(),
+            createdAt = Instant.now()
+        )
+        val answerMessage = AssistantMessage(
+            id = UUID.randomUUID(),
+            role = AssistantMessageRole.ASSISTANT,
+            status = AssistantMessageStatus.PENDING,
+            content = "",
+            failureReason = null,
+            recommendations = emptyList(),
+            createdAt = Instant.now()
+        )
+        val startedChat = chat.copy(messages = chat.messages + questionMessage + answerMessage)
+        try {
+            discoverChatRepository.save(userId, startedChat)
+        } catch (e: Exception) {
+            discoverChatRepository.finishAnswering(userId)
+            throw e
+        }
+
+        val prompt = AssistantPrompts.discoverPrompt(zoneId = zoneId, history = chat.messages.takeLast(HISTORY_MESSAGES), question = question)
         val turn = AssistantTurn(
             userId = userId,
             searchLatitude = latitude,
             searchLongitude = longitude,
             hangoutTime = null,
             ballotSpotIds = emptyList(),
-            earlierRecommendedSpotIds = chat.messages.flatMap { message -> message.spots.map { it.id } }.distinct()
+            earlierRecommendedSpotIds = chat.messages.flatMap { message -> message.recommendations.map { it.spot.id } }.distinct()
         )
 
-        onEvent(AssistantStreamEvent.Started(messageId = null, discoverChatId = chat.id))
+        onEvent(AssistantStreamEvent.Started(messageId = answerMessage.id, discoverChatId = chat.id))
         launchAnswer(
             prompt = prompt,
             turn = turn,
             onEvent = onEvent,
             onFinished = onFinished,
             saveAnswer = { answer ->
-                val messages = chat.messages +
-                        DiscoverChatMessage(role = AssistantMessageRole.USER, content = question, spots = emptyList()) +
-                        DiscoverChatMessage(
-                            role = AssistantMessageRole.ASSISTANT,
-                            content = answer.content,
-                            spots = turn.recommendations.map { DiscoverChatSpot(id = it.spot.id, name = it.spot.name) }
-                        )
-                discoverChatRepository.save(userId, chat.copy(messages = messages.takeLast(HISTORY_MESSAGES)))
+                val answeredMessage = answerMessage.copy(
+                    status = AssistantMessageStatus.ANSWERED,
+                    content = answer.content,
+                    recommendations = turn.recommendations.toList()
+                )
+                discoverChatRepository.save(userId, startedChat.withMessage(answeredMessage))
+                logger.info(
+                    "Discover answer used {} input tokens, {} output tokens and {} searches",
+                    answer.inputTokens,
+                    answer.outputTokens,
+                    turn.searchCount
+                )
             },
-            saveFailure = {},
+            saveFailure = { reason ->
+                val failedMessage = answerMessage.copy(status = AssistantMessageStatus.FAILED, failureReason = reason)
+                discoverChatRepository.save(userId, startedChat.withMessage(failedMessage))
+            },
             release = { discoverChatRepository.finishAnswering(userId) }
         )
     }
@@ -304,5 +359,9 @@ class AssistantService(
         } catch (_: DateTimeException) {
             ZoneOffset.UTC
         }
+    }
+
+    private fun DiscoverChat.withMessage(message: AssistantMessage): DiscoverChat {
+        return copy(messages = messages.map { if (it.id == message.id) message else it })
     }
 }

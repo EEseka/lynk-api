@@ -4,7 +4,6 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.PaymentId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
@@ -19,10 +18,9 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
 
     fun findByReference(reference: String): PaymentEntity?
 
-    fun findAllByHangoutIdAndStatusAndRefundStatus(
+    fun findAllByHangoutIdAndStatus(
         hangoutId: HangoutId,
-        status: PaymentStatus,
-        refundStatus: RefundStatus
+        status: PaymentStatus
     ): List<PaymentEntity>
 
     @Query("""
@@ -30,20 +28,17 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
         FROM PaymentEntity p
         WHERE p.hangoutId = :hangoutId
         AND p.status = :status
-        AND p.refundStatus = :refundStatus
     """)
-    fun sumNetAmountByHangoutIdAndStatusAndRefundStatus(
+    fun sumNetAmountByHangoutIdAndStatus(
         hangoutId: HangoutId,
-        status: PaymentStatus,
-        refundStatus: RefundStatus
+        status: PaymentStatus
     ): Long
 
     // One person's money on one hangout, for when only they are leaving.
-    fun findByHangoutIdAndUserIdAndStatusAndRefundStatus(
+    fun findByHangoutIdAndUserIdAndStatus(
         hangoutId: HangoutId,
         userId: UserId,
-        status: PaymentStatus,
-        refundStatus: RefundStatus
+        status: PaymentStatus
     ): PaymentEntity?
 
     // Drives the reconciliation sweep: payments we started and never heard back about.
@@ -61,7 +56,7 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
     /**
      * Every payment one person has going on one hangout, locked for the rest of the transaction.
      *
-     * A guest who taps Pay twice ends up with two references, and both can be reported paid at the same
+     * An attendee who taps Pay twice ends up with two references, and both can be reported paid at the same
      * moment. Without this, each webhook asks "has this person already paid?", both are told no, and two
      * payments are kept. Taking this lock first makes the second webhook wait for the first to finish,
      * so it sees the payment that just succeeded and sends its own money back.
@@ -70,16 +65,15 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
     @Query("SELECT p FROM PaymentEntity p WHERE p.hangoutId = :hangoutId AND p.userId = :userId")
     fun lockAllByHangoutIdAndUserId(hangoutId: HangoutId, userId: UserId): List<PaymentEntity>
 
-    fun findAllByRefundStatus(refundStatus: RefundStatus): List<PaymentEntity>
+    fun findAllByStatus(status: PaymentStatus): List<PaymentEntity>
 
-    fun findAllByRefundStatusAndUpdatedAtBefore(
-        refundStatus: RefundStatus,
+    fun findAllByStatusAndUpdatedAtBefore(
+        status: PaymentStatus,
         before: Instant
     ): List<PaymentEntity>
 
-    fun findAllByStatusAndRefundStatusAndPaidAtAfter(
+    fun findAllByStatusAndPaidAtAfter(
         status: PaymentStatus,
-        refundStatus: RefundStatus,
         paidAt: Instant
     ): List<PaymentEntity>
 
@@ -90,49 +84,32 @@ interface PaymentRepository : JpaRepository<PaymentEntity, PaymentId> {
     ): List<PaymentEntity>
 
     /**
-     * Moves a payment's refund to [newStatus], but only if it is still at [expectedStatus], and also
-     * records the amount going back. Answers how many rows changed - 0 meaning somebody else got there
-     * first and this call did nothing.
+     * Moves a payment to [newStatus], but only if it is still at [expectedStatus]. Answers how many rows
+     * changed - 0 meaning somebody else got there first and this call did nothing.
      *
      * One statement rather than a read followed by a save, because two refunds can be triggered at the
-     * same moment and a read would let both of them see the row as free.
+     * same moment and a read would let both of them see the payment as free to send back.
      *
-     * [expectedStatus] is NONE for a first attempt and FAILED for a retry, so a retry can only pick up
-     * a refund that is genuinely stuck rather than one already on its way.
+     * Its own transaction, committed before the provider is called, and the only kind an after-commit
+     * listener can write in.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         UPDATE PaymentEntity p
-        SET p.refundStatus = :newStatus, p.refundedAmountKobo = p.netAmountKobo
+        SET p.status = :newStatus, p.updatedAt = :updatedAt
         WHERE p.id = :paymentId
-        AND p.refundStatus = :expectedStatus
+        AND p.status = :expectedStatus
     """)
-    fun transitionRefundStatus(
+    fun transitionStatus(
         paymentId: PaymentId,
-        newStatus: RefundStatus,
-        expectedStatus: RefundStatus
+        newStatus: PaymentStatus,
+        expectedStatus: PaymentStatus,
+        updatedAt: Instant
     ): Int
-
-    /**
-     * Records that the provider refused to send the money back. The amount is cleared along with it,
-     * because nothing went anywhere.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @Modifying
-    @Query("""
-        UPDATE PaymentEntity p
-        SET p.refundStatus = RefundStatus.FAILED,
-            p.refundedAmountKobo = null
-        WHERE p.id = :paymentId
-    """)
-    fun failRefund(paymentId: PaymentId)
 
     // Account deletion guard: a charge still in flight, or a refund this user is still owed.
     fun existsByUserIdAndStatus(userId: UserId, status: PaymentStatus): Boolean
 
-    fun existsByUserIdAndRefundStatusIn(
-        userId: UserId,
-        refundStatuses: Collection<RefundStatus>
-    ): Boolean
+    fun existsByUserIdAndStatusIn(userId: UserId, statuses: List<PaymentStatus>): Boolean
 }

@@ -5,8 +5,10 @@ import com.eeseka.lynk.common.api.util.requestUserId
 import com.eeseka.lynk.common.domain.model.WhenRedisIsDown
 import com.eeseka.lynk.spot.api.dto.PaginatedSpotsDto
 import com.eeseka.lynk.spot.api.dto.SpotDto
+import com.eeseka.lynk.spot.api.dto.TrendingSpotsDto
 import com.eeseka.lynk.spot.api.mappers.toPaginatedSpotsDto
 import com.eeseka.lynk.spot.api.mappers.toSpotDto
+import com.eeseka.lynk.spot.api.mappers.toTrendingSpotsDto
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.SpotCategory
 import com.eeseka.lynk.spot.service.SpotService
@@ -51,13 +53,13 @@ class SpotController(
         @RequestParam(required = false)
         @Min(1) @Max(MAX_TRENDING_LIMIT.toLong())
         limit: Int = DEFAULT_TRENDING_LIMIT
-    ): List<SpotDto> {
+    ): TrendingSpotsDto {
         return spotService.getTrendingSpots(
             latitude = latitude,
             longitude = longitude,
             limit = limit,
             userId = requestUserId
-        ).map { it.toSpotDto() }
+        ).toTrendingSpotsDto()
     }
 
     @UserRateLimit(

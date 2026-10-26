@@ -9,6 +9,7 @@ import com.eeseka.lynk.spot.api.dto.SpotOpeningPeriodDto
 import com.eeseka.lynk.spot.api.dto.SpotParkingDto
 import com.eeseka.lynk.spot.api.dto.SpotPaymentDto
 import com.eeseka.lynk.spot.api.dto.SpotPriceRangeDto
+import com.eeseka.lynk.spot.api.dto.TrendingSpotsDto
 import com.eeseka.lynk.spot.domain.model.PaginatedSpots
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotAiSummary
@@ -18,6 +19,7 @@ import com.eeseka.lynk.spot.domain.model.SpotOpeningPeriod
 import com.eeseka.lynk.spot.domain.model.SpotParking
 import com.eeseka.lynk.spot.domain.model.SpotPayment
 import com.eeseka.lynk.spot.domain.model.SpotPriceRange
+import com.eeseka.lynk.spot.domain.model.TrendingSpots
 
 fun Spot.toSpotDto(): SpotDto {
     return SpotDto(
@@ -54,6 +56,13 @@ fun PaginatedSpots.toPaginatedSpotsDto(): PaginatedSpotsDto {
     return PaginatedSpotsDto(
         spots = spots.map { it.toSpotDto() },
         nextPageToken = nextPageToken
+    )
+}
+
+fun TrendingSpots.toTrendingSpotsDto(): TrendingSpotsDto {
+    return TrendingSpotsDto(
+        spots = spots.map { it.toSpotDto() },
+        areaName = areaName
     )
 }
 

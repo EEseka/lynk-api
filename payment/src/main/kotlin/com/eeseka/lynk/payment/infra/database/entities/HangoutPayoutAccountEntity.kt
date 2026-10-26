@@ -40,15 +40,6 @@ class HangoutPayoutAccountEntity(
     @Column(nullable = false, length = 100)
     var accountHolderName: String,
 
-    @Column(nullable = true, unique = true, length = 100)
-    var transferReference: String? = null,
-
-    @Column(nullable = true)
-    var paidOutAt: Instant? = null,
-
-    @Column(nullable = true, length = 255)
-    var payoutFailureReason: String? = null,
-
     @CreationTimestamp
     var createdAt: Instant = Instant.now(),
 

@@ -23,7 +23,7 @@ import java.time.Instant
     name = "hangout_photos",
     schema = "hangout_service",
     indexes = [
-        // The partial index on PENDING rows lives only in V5; JPA cannot express it
+        // The partial indexes on PENDING rows and on unannounced READY rows live only in V5 and V8; JPA cannot express them
         Index(name = "idx_hangout_photos_hangout_id_created_at", columnList = "hangout_id, created_at DESC"),
         Index(name = "idx_hangout_photos_uploader_id", columnList = "uploader_id")
     ]

@@ -3,6 +3,7 @@ package com.eeseka.lynk.spot
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
+import com.eeseka.lynk.spot.domain.model.TrendingSpots
 import com.eeseka.lynk.spot.infra.database.repositories.SavedSpotRepository
 import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.TestAccount
@@ -224,7 +225,12 @@ class SpotJourneyTest : IntegrationTest() {
                 longitude = eq(LONGITUDE),
                 limit = eq(20)
             )
-        ).willReturn(listOf(spot(SPOT_ID, "Terra Kulture"), spot(OTHER_SPOT_ID, "Nok by Alara")))
+        ).willReturn(
+            TrendingSpots(
+                spots = listOf(spot(SPOT_ID, "Terra Kulture"), spot(OTHER_SPOT_ID, "Nok by Alara")),
+                areaName = "Lagos"
+            )
+        )
 
         mockMvc.get("/api/spots/trending") {
             authenticatedAs(user)
@@ -232,9 +238,10 @@ class SpotJourneyTest : IntegrationTest() {
             param("longitude", LONGITUDE.toString())
         }.andExpect {
             status { isOk() }
-            jsonPath("$.length()") { value(2) }
-            jsonPath("$[0].isSaved") { value(true) }
-            jsonPath("$[1].isSaved") { value(false) }
+            jsonPath("$.spots.length()") { value(2) }
+            jsonPath("$.spots[0].isSaved") { value(true) }
+            jsonPath("$.spots[1].isSaved") { value(false) }
+            jsonPath("$.areaName") { value("Lagos") }
         }
     }
 

@@ -16,10 +16,12 @@ import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRep
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutUserRepository
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
+import com.eeseka.lynk.payment.domain.model.PayoutStatus
 import com.eeseka.lynk.payment.infra.database.entities.HangoutPayoutAccountEntity
+import com.eeseka.lynk.payment.infra.database.entities.PayoutEntity
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
 import com.eeseka.lynk.payment.infra.database.repositories.HangoutPayoutAccountRepository
+import com.eeseka.lynk.payment.infra.database.repositories.PayoutRepository
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
 import org.springframework.boot.test.context.TestComponent
 import org.springframework.jdbc.core.JdbcTemplate
@@ -42,6 +44,7 @@ class TestFixtures(
     private val hangoutParticipantRepository: HangoutParticipantRepository,
     private val paymentRepository: PaymentRepository,
     private val hangoutPayoutAccountRepository: HangoutPayoutAccountRepository,
+    private val payoutRepository: PayoutRepository,
     private val jdbcTemplate: JdbcTemplate
 ) {
 
@@ -108,7 +111,6 @@ class TestFixtures(
         userId: UserId,
         amountKobo: Long = 500_000L,
         status: PaymentStatus = PaymentStatus.PENDING,
-        refundStatus: RefundStatus = RefundStatus.NONE,
         paidAt: Instant? = null,
         reference: String = "lynk-${UUID.randomUUID()}"
     ): PaymentEntity = paymentRepository.save(
@@ -119,7 +121,6 @@ class TestFixtures(
             amountKobo = amountKobo,
             netAmountKobo = amountKobo,
             status = status,
-            refundStatus = refundStatus,
             paidAt = paidAt
         )
     )
@@ -127,8 +128,7 @@ class TestFixtures(
     fun payoutAccount(
         hangout: HangoutEntity,
         host: HangoutUserEntity,
-        recipientCode: String = "RCP_test_recipient",
-        transferReference: String? = null
+        recipientCode: String = "RCP_test_recipient"
     ): HangoutPayoutAccountEntity = hangoutPayoutAccountRepository.save(
         HangoutPayoutAccountEntity(
             hangoutId = hangout.id!!,
@@ -136,8 +136,23 @@ class TestFixtures(
             recipientCode = recipientCode,
             bankName = "Test Bank",
             accountNumberLast4 = "1234",
-            accountHolderName = host.displayName,
-            transferReference = transferReference
+            accountHolderName = host.displayName
+        )
+    )
+
+    fun payout(
+        hangoutId: HangoutId,
+        reference: String = "lynk_payout_${UUID.randomUUID()}",
+        amountKobo: Long = 500_000L,
+        status: PayoutStatus = PayoutStatus.IN_FLIGHT,
+        failureReason: String? = null
+    ): PayoutEntity = payoutRepository.save(
+        PayoutEntity(
+            hangoutId = hangoutId,
+            reference = reference,
+            amountKobo = amountKobo,
+            status = status,
+            failureReason = failureReason
         )
     )
 
@@ -170,11 +185,12 @@ class TestFixtures(
     }
 
     /** Same reasoning as [agePayment]: the stuck-payout report only looks at old rows. */
-    fun agePayoutAccount(payoutAccount: HangoutPayoutAccountEntity, updatedAt: Instant) {
+    fun agePayout(payout: PayoutEntity, settledAt: Instant) {
         jdbcTemplate.update(
-            "UPDATE payment_service.hangout_payout_accounts SET updated_at = ? WHERE hangout_id = ?",
-            Timestamp.from(updatedAt),
-            payoutAccount.hangoutId
+            "UPDATE payment_service.payouts SET created_at = ?, settled_at = ? WHERE reference = ?",
+            Timestamp.from(settledAt),
+            Timestamp.from(settledAt),
+            payout.reference
         )
     }
 

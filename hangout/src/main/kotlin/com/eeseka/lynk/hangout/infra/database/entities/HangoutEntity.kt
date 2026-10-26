@@ -28,7 +28,8 @@ import java.time.Instant
     schema = "hangout_service",
     indexes = [
         Index(name = "idx_hangouts_host_id", columnList = "host_id"),
-        Index(name = "idx_hangouts_created_at", columnList = "created_at")
+        Index(name = "idx_hangouts_created_at", columnList = "created_at"),
+        Index(name = "idx_hangouts_status_scheduled_at", columnList = "status, scheduled_at")
     ]
 )
 class HangoutEntity(
@@ -55,12 +56,6 @@ class HangoutEntity(
 
     @Column(nullable = false)
     var scheduledAt: Instant,
-
-    @Column(nullable = false)
-    var completionRemindersSent: Int = 0,
-
-    @Column(nullable = false)
-    var spotRemindersSent: Int = 0,
 
     @Column(nullable = true)
     var maxAttendees: Int?,

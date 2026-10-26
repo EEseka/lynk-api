@@ -6,7 +6,6 @@ import com.eeseka.lynk.hangout.service.HangoutParticipantService
 import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.events.RefundRequiredEvent
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
 import org.slf4j.LoggerFactory
@@ -23,6 +22,15 @@ class PaymentConfirmationService(
     private val applicationEventPublisher: ApplicationEventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    companion object {
+        private val ALREADY_CONFIRMED_STATUSES = setOf(
+            PaymentStatus.SUCCESS,
+            PaymentStatus.REFUNDING,
+            PaymentStatus.REFUND_FAILED,
+            PaymentStatus.REFUNDED
+        )
+    }
 
     @Transactional
     fun confirm(reference: String, paidAmountKobo: Long?) {
@@ -41,8 +49,8 @@ class PaymentConfirmationService(
 
         val payment = locked.firstOrNull { it.reference == reference } ?: reported
 
-        if (payment.status == PaymentStatus.SUCCESS) {
-            logger.info("Payment {} is already successful, nothing to do", payment.reference)
+        if (payment.status in ALREADY_CONFIRMED_STATUSES) {
+            logger.info("Payment {} is already {}, nothing to do", payment.reference, payment.status)
             return
         }
 
@@ -51,9 +59,7 @@ class PaymentConfirmationService(
             return
         }
 
-        val hasPaidAlready = locked.any {
-            it.reference != reference && it.status == PaymentStatus.SUCCESS && it.refundStatus == RefundStatus.NONE
-        }
+        val hasPaidAlready = locked.any { it.reference != reference && it.status == PaymentStatus.SUCCESS }
 
         if (hasPaidAlready) {
             logger.warn(
@@ -61,12 +67,11 @@ class PaymentConfirmationService(
                 payment.reference, payment.userId, payment.hangoutId
             )
 
+            // Recorded as paid and already on its way back, so it is never counted as money we hold
             paymentRepository.save(
                 payment.apply {
-                    status = PaymentStatus.SUCCESS
+                    status = PaymentStatus.REFUNDING
                     paidAt = Instant.now()
-                    refundStatus = RefundStatus.REQUESTED
-                    refundedAmountKobo = netAmountKobo
                 }
             )
 

@@ -30,7 +30,7 @@ import kotlin.test.assertNotNull
  * The host putting a price on a hangout: the bill is split between whoever is coming, the host's
  * bank account is checked with Paystack, and everyone starts owing their share.
  *
- * This is where the hangout module and the payment module meet, and where the number a guest is
+ * This is where the hangout module and the payment module meet, and where the number an attendee is
  * later charged is decided.
  */
 class EnablePaymentsJourneyTest : IntegrationTest() {
@@ -65,7 +65,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     @Test
     fun `splits the bill between the people who are coming`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
 
         enablePayments(host, hangoutId, totalCostKobo = 1_000_000L).andExpect {
             status { isOk() }
@@ -82,13 +82,13 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     }
 
     /**
-     * Integer division leaves a remainder, and it stays with the host: every guest's share is the
+     * Integer division leaves a remainder, and it stays with the host: every attendee's share is the
      * same number, and together they never come to more than the bill.
      */
     @Test
     fun `leaves the odd kobo with the host`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
 
         enablePayments(host, hangoutId, totalCostKobo = 1_000_001L).andExpect {
             status { isOk() }
@@ -99,7 +99,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     @Test
     fun `records the account the money will be sent to`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
 
         enablePayments(host, hangoutId, totalCostKobo = 1_000_000L).andExpect { status { isOk() } }
 
@@ -114,7 +114,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     fun `lets nobody but the host put a price on a hangout`() {
         val host = signIn("ada")
         val friend = signIn("bola")
-        val hangoutId = arrangeHangoutWithGuest(host, guest = friend)
+        val hangoutId = arrangeHangoutWithAttendee(host, attendee = friend)
 
         enablePayments(friend, hangoutId, totalCostKobo = 1_000_000L)
             .andExpect { status { isForbidden() } }
@@ -123,7 +123,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     @Test
     fun `refuses a deadline after the hangout itself`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
 
         enablePayments(
             host = host,
@@ -136,7 +136,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     @Test
     fun `refuses to turn payments on twice`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
         enablePayments(host, hangoutId, totalCostKobo = 1_000_000L).andExpect { status { isOk() } }
 
         enablePayments(host, hangoutId, totalCostKobo = 2_000_000L)
@@ -156,7 +156,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
     @Test
     fun `refuses a share too small to charge`() {
         val host = signIn("ada")
-        val hangoutId = arrangeHangoutWithGuest(host)
+        val hangoutId = arrangeHangoutWithAttendee(host)
 
         // Split two ways this comes to fifty kobo each, under the one naira Paystack will take.
         enablePayments(host, hangoutId, totalCostKobo = 100L)
@@ -169,22 +169,22 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
         username = username
     )
 
-    /** A scheduled hangout with the host and one guest attending — the least payments will accept. */
-    private fun arrangeHangoutWithGuest(
+    /** A scheduled hangout with the host and one attendee attending — the least payments will accept. */
+    private fun arrangeHangoutWithAttendee(
         host: TestAccount,
-        guest: TestAccount = signIn("bola")
+        attendee: TestAccount = signIn("bola")
     ): HangoutId {
         val hangoutId = createScheduledHangout(host)
 
         mockMvc.post("/api/hangouts/$hangoutId/participants") {
             contentType = MediaType.APPLICATION_JSON
             authenticatedAs(host)
-            content = """{"userId":"${guest.userId}"}"""
+            content = """{"userId":"${attendee.userId}"}"""
         }.andExpect { status { isCreated() } }
 
         mockMvc.patch("/api/hangouts/$hangoutId/rsvp") {
             contentType = MediaType.APPLICATION_JSON
-            authenticatedAs(guest)
+            authenticatedAs(attendee)
             content = """{"rsvpStatus":"${RsvpStatus.ATTENDING.name}"}"""
         }.andExpect { status { isOk() } }
 

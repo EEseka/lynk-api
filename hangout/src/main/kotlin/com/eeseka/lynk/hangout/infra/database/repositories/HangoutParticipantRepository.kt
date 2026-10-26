@@ -39,7 +39,7 @@ interface HangoutParticipantRepository : JpaRepository<HangoutParticipantEntity,
 
     // Answers: "How many hangouts have I turned up to that were not my own?"
     // The host is seated as an ATTENDING participant of their own hangout, so those rows are
-    // excluded here to stop this overlapping countByHostIdAndStatus.
+    // excluded here to stop this overlapping countByHostIdAndStatusAndParticipantCountAtLeast.
     @Query("""
         SELECT COUNT(p)
         FROM HangoutParticipantEntity p

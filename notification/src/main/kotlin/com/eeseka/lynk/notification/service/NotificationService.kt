@@ -82,6 +82,12 @@ class NotificationService(
         notificationRepository.deleteByUserId(userId)
     }
 
+    @Transactional
+    fun deleteAllForHangouts(hangoutIds: List<HangoutId>) {
+        if (hangoutIds.isEmpty()) return
+        notificationRepository.deleteByHangoutIdIn(hangoutIds)
+    }
+
     @Scheduled(cron = "0 0 6 * * *")
     @Transactional
     fun deleteOldReadNotifications() {

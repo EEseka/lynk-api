@@ -4,7 +4,9 @@ import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
 import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
+import com.eeseka.lynk.payment.infra.database.entities.RefundEntity
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.RefundRepository
 import com.eeseka.lynk.payment.service.RefundService
 import com.eeseka.lynk.support.IntegrationTest
 import org.junit.jupiter.api.Test
@@ -16,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 
 /**
  * A refund that Paystack refused is money we still owe someone, so it is retried rather than
@@ -30,22 +31,25 @@ class RefundSweepTest : IntegrationTest() {
     @Autowired
     private lateinit var paymentRepository: PaymentRepository
 
+    @Autowired
+    private lateinit var refundRepository: RefundRepository
+
     @Test
-    fun `tries a refused refund again`() {
+    fun `tries a refused refund again and keeps the refused attempt`() {
         val payment = arrangeFailedRefund()
 
         refundService.retryFailedRefunds()
 
         then(paystackClient).should().refund(payment.reference, payment.netAmountKobo)
-
-        val retried = paymentRepository.findByReference(payment.reference)
-        assertNotNull(retried)
-        assertEquals(RefundStatus.REQUESTED, retried.refundStatus)
-        assertEquals(payment.netAmountKobo, retried.refundedAmountKobo)
+        assertEquals(PaymentStatus.REFUNDING, paymentRepository.findByReference(payment.reference)?.status)
+        assertEquals(
+            listOf(RefundStatus.FAILED to payment.netAmountKobo, RefundStatus.REQUESTED to payment.netAmountKobo),
+            refundRepository.findAll().sortedBy { it.id }.map { it.status to it.amountKobo }
+        )
     }
 
     /**
-     * Once the money has reached the host's bank account it is genuinely gone — we cannot reach into
+     * Once the money has reached the host's bank account, it is genuinely gone — we cannot reach into
      * their account to take it back, so the sweep must stop trying.
      */
     @Test
@@ -55,7 +59,7 @@ class RefundSweepTest : IntegrationTest() {
         refundService.retryFailedRefunds()
 
         then(paystackClient).should(never()).refund(anyString(), anyLong())
-        assertEquals(RefundStatus.FAILED, paymentRepository.findByReference(payment.reference)?.refundStatus)
+        assertEquals(PaymentStatus.REFUND_FAILED, paymentRepository.findByReference(payment.reference)?.status)
     }
 
     /**
@@ -64,34 +68,39 @@ class RefundSweepTest : IntegrationTest() {
      */
     @Test
     fun `reports a refund stuck in flight without touching it`() {
-        val payment = arrangeFailedRefund(refundStatus = RefundStatus.REQUESTED)
+        val payment = arrangeFailedRefund(status = PaymentStatus.REFUNDING)
         fixtures.agePayment(payment, updatedAt = Instant.now().minus(Duration.ofDays(3)))
 
         refundService.reportRefundsStillInFlight()
 
-        val untouched = paymentRepository.findByReference(payment.reference)
-        assertNotNull(untouched)
-        assertEquals(RefundStatus.REQUESTED, untouched.refundStatus)
-        assertEquals(PaymentStatus.SUCCESS, untouched.status)
+        assertEquals(PaymentStatus.REFUNDING, paymentRepository.findByReference(payment.reference)?.status)
         then(paystackClient).should(never()).refund(anyString(), anyLong())
     }
 
     private fun arrangeFailedRefund(
         paymentState: PaymentState = PaymentState.COLLECTING,
-        refundStatus: RefundStatus = RefundStatus.FAILED
+        status: PaymentStatus = PaymentStatus.REFUND_FAILED
     ): PaymentEntity {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(host = host, paymentState = paymentState)
         fixtures.participant(hangout = hangout, user = host)
-        fixtures.participant(hangout = hangout, user = guest)
+        fixtures.participant(hangout = hangout, user = attendee)
 
-        return fixtures.payment(
+        val payment = fixtures.payment(
             hangoutId = hangout.id!!,
-            userId = guest.userId,
-            status = PaymentStatus.SUCCESS,
-            refundStatus = refundStatus,
+            userId = attendee.userId,
+            status = status,
             paidAt = Instant.now().minus(Duration.ofHours(2))
         )
+        refundRepository.save(
+            RefundEntity(
+                paymentId = payment.id!!,
+                amountKobo = payment.netAmountKobo,
+                status = if (status == PaymentStatus.REFUNDING) RefundStatus.REQUESTED else RefundStatus.FAILED,
+                failureReason = if (status == PaymentStatus.REFUNDING) null else "Refused"
+            )
+        )
+        return payment
     }
 }

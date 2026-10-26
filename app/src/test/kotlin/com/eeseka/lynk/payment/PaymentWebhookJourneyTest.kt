@@ -4,8 +4,12 @@ import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRep
 import com.eeseka.lynk.payment.domain.exception.RefundRejectedException
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
 import com.eeseka.lynk.payment.domain.model.RefundStatus
+import com.eeseka.lynk.notification.domain.model.NotificationType
+import com.eeseka.lynk.notification.infra.database.repositories.NotificationRepository
 import com.eeseka.lynk.payment.infra.database.entities.PaymentEntity
+import com.eeseka.lynk.payment.infra.database.entities.RefundEntity
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
+import com.eeseka.lynk.payment.infra.database.repositories.RefundRepository
 import com.eeseka.lynk.support.IntegrationTest
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyLong
@@ -40,11 +44,17 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
     @Autowired
     private lateinit var hangoutParticipantRepository: HangoutParticipantRepository
 
+    @Autowired
+    private lateinit var refundRepository: RefundRepository
+
+    @Autowired
+    private lateinit var notificationRepository: NotificationRepository
+
     @Value("\${paystack.secret-key}")
     private lateinit var paystackSecretKey: String
 
     @Test
-    fun `confirms the payment and seats the guest`() {
+    fun `confirms the payment and seats the attendee`() {
         val payment = arrangePendingPayment()
 
         postWebhook(chargeSucceeded(payment.reference, paidAmountKobo = AMOUNT_OWED_KOBO))
@@ -60,7 +70,7 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
             userId = confirmed.userId
         )
         assertNotNull(participant)
-        assertTrue(participant.hasPaid, "the guest paid but is still marked unpaid")
+        assertTrue(participant.hasPaid, "the attendee paid but is still marked unpaid")
     }
 
     @Test
@@ -106,7 +116,7 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
 
         assertEquals(PaymentStatus.SUCCESS, afterSecond.status)
         assertEquals(afterFirst, afterSecond.paidAt, "the repeat webhook confirmed the payment again")
-        assertEquals(RefundStatus.NONE, afterSecond.refundStatus, "a retry was mistaken for a second payment")
+        assertEquals(0, refundRepository.count(), "a retry was mistaken for a second payment")
     }
 
     /**
@@ -115,7 +125,7 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
      * person on one hangout, so the refund has to be claimed by the write that records the charge.
      */
     @Test
-    fun `sends back a second charge the same guest made from another device`() {
+    fun `sends back a second charge the same attendee made from another device`() {
         val (first, second) = arrangeTwoPendingPayments()
 
         postWebhook(chargeSucceeded(first.reference, paidAmountKobo = AMOUNT_OWED_KOBO))
@@ -125,20 +135,23 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
 
         val keeper = paymentRepository.findByReference(first.reference)
         assertNotNull(keeper)
-        assertEquals(PaymentStatus.SUCCESS, keeper.status)
-        assertEquals(RefundStatus.NONE, keeper.refundStatus, "the payment that bought the seat was sent back")
+        assertEquals(PaymentStatus.SUCCESS, keeper.status, "the payment that bought the seat was sent back")
 
         val duplicate = paymentRepository.findByReference(second.reference)
         assertNotNull(duplicate)
-        assertEquals(PaymentStatus.SUCCESS, duplicate.status, "the second charge was real and has to say so")
-        assertEquals(RefundStatus.REQUESTED, duplicate.refundStatus, "the second charge was never sent back")
+        assertNotNull(duplicate.paidAt, "the second charge was real and has to say so")
+        assertEquals(PaymentStatus.REFUNDING, duplicate.status, "the second charge was never sent back")
+        assertEquals(
+            listOf(duplicate.id to RefundStatus.REQUESTED),
+            refundRepository.findAll().map { it.paymentId to it.status }
+        )
 
         val participant = hangoutParticipantRepository.findByHangoutIdAndHangoutUserUserId(
             hangoutId = keeper.hangoutId,
             userId = keeper.userId
         )
         assertNotNull(participant)
-        assertTrue(participant.hasPaid, "the guest paid but is still marked unpaid")
+        assertTrue(participant.hasPaid, "the attendee paid but is still marked unpaid")
     }
 
     /**
@@ -154,16 +167,15 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
 
         val failed = paymentRepository.findByReference(payment.reference)
         assertNotNull(failed)
-        assertEquals(PaymentStatus.FAILED, failed.status)
-        assertNotNull(failed.failureReason)
-        assertEquals(RefundStatus.REQUESTED, failed.refundStatus)
+        assertEquals(PaymentStatus.REFUNDING, failed.status, "the short payment was not sent back")
+        assertNotNull(failed.failureReason, "why it bought no seat was lost")
 
         val participant = hangoutParticipantRepository.findByHangoutIdAndHangoutUserUserId(
             hangoutId = failed.hangoutId,
             userId = failed.userId
         )
         assertNotNull(participant)
-        assertFalse(participant.hasPaid, "a short payment seated the guest anyway")
+        assertFalse(participant.hasPaid, "a short payment seated the attendee anyway")
     }
 
     /**
@@ -179,10 +191,33 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
         postWebhook(chargeSucceeded(payment.reference, paidAmountKobo = AMOUNT_OWED_KOBO - 1))
             .andExpect { status { isOk() } }
 
-        val refused = paymentRepository.findByReference(payment.reference)
-        assertNotNull(refused)
-        assertEquals(RefundStatus.FAILED, refused.refundStatus)
-        assertNull(refused.refundedAmountKobo, "nothing went back, so no amount should be recorded")
+        assertEquals(PaymentStatus.REFUND_FAILED, paymentRepository.findByReference(payment.reference)?.status)
+        val attempt = refundRepository.findAll().single()
+        assertEquals(RefundStatus.FAILED, attempt.status)
+        assertEquals("Transaction has been fully reversed", attempt.failureReason)
+    }
+
+    @Test
+    fun `records a refund the provider says reached the payer`() {
+        val payment = arrangeRefundInFlight()
+
+        postWebhook(refundProcessed(payment.reference)).andExpect { status { isOk() } }
+
+        assertEquals(PaymentStatus.REFUNDED, paymentRepository.findByReference(payment.reference)?.status)
+        val attempt = refundRepository.findAll().single()
+        assertEquals(RefundStatus.PROCESSED, attempt.status)
+        assertNotNull(attempt.settledAt)
+    }
+
+    @Test
+    fun `takes the same refund report twice without telling the payer twice`() {
+        val payment = arrangeRefundInFlight()
+
+        postWebhook(refundProcessed(payment.reference)).andExpect { status { isOk() } }
+        postWebhook(refundProcessed(payment.reference)).andExpect { status { isOk() } }
+        broker.deliverEvents()
+
+        assertEquals(1, notificationRepository.findAll().count { it.type == NotificationType.REFUND_ISSUED })
     }
 
     @Test
@@ -193,37 +228,37 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
         assertEquals(0, paymentRepository.count())
     }
 
-    /** A guest who is attending a hangout with money on it and has a charge in flight. */
+    /** An attendee who is attending a hangout with money on it and has a charge in flight. */
     private fun arrangePendingPayment(): PaymentEntity {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(host = host)
         fixtures.participant(hangout = hangout, user = host)
-        fixtures.participant(hangout = hangout, user = guest)
+        fixtures.participant(hangout = hangout, user = attendee)
 
         return fixtures.payment(
             hangoutId = hangout.id!!,
-            userId = guest.userId,
+            userId = attendee.userId,
             amountKobo = AMOUNT_OWED_KOBO
         )
     }
 
-    /** One guest with two checkouts in flight on the same hangout, as two devices would leave them. */
+    /** One attendee with two checkouts in flight on the same hangout, as two devices would leave them. */
     private fun arrangeTwoPendingPayments(): Pair<PaymentEntity, PaymentEntity> {
         val host = fixtures.user(displayName = "Ada")
-        val guest = fixtures.user(displayName = "Bola")
+        val attendee = fixtures.user(displayName = "Bola")
         val hangout = fixtures.hangout(host = host)
         fixtures.participant(hangout = hangout, user = host)
-        fixtures.participant(hangout = hangout, user = guest)
+        fixtures.participant(hangout = hangout, user = attendee)
 
         val first = fixtures.payment(
             hangoutId = hangout.id!!,
-            userId = guest.userId,
+            userId = attendee.userId,
             amountKobo = AMOUNT_OWED_KOBO
         )
         val second = fixtures.payment(
             hangoutId = hangout.id!!,
-            userId = guest.userId,
+            userId = attendee.userId,
             amountKobo = AMOUNT_OWED_KOBO
         )
 
@@ -235,6 +270,26 @@ class PaymentWebhookJourneyTest : IntegrationTest() {
         content = body
         header(SIGNATURE_HEADER, sign(body, secret = paystackSecretKey))
     }
+
+    // A refund already asked for, as RefundService leaves it before Paystack reports back
+    private fun arrangeRefundInFlight(): PaymentEntity {
+        val pending = arrangePendingPayment()
+        val payment = paymentRepository.save(pending.apply { status = PaymentStatus.REFUNDING })
+        refundRepository.save(
+            RefundEntity(paymentId = payment.id!!, amountKobo = payment.netAmountKobo, status = RefundStatus.REQUESTED)
+        )
+        return payment
+    }
+
+    private fun refundProcessed(transactionReference: String) = """
+        {
+          "event": "refund.processed",
+          "data": {
+            "transaction_reference": "$transactionReference",
+            "status": "processed"
+          }
+        }
+    """.trimIndent()
 
     private fun chargeSucceeded(reference: String, paidAmountKobo: Long) = """
         {

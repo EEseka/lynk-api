@@ -1,6 +1,7 @@
 package com.eeseka.lynk.notification.infra.database.repositories
 
 import com.eeseka.lynk.common.domain.type.NotificationId
+import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.notification.infra.database.entities.NotificationEntity
 import org.springframework.data.domain.Pageable
@@ -48,4 +49,11 @@ interface NotificationRepository : JpaRepository<NotificationEntity, Notificatio
     fun deleteByIsReadTrueAndCreatedAtBefore(cutoff: Instant)
 
     fun deleteByUserId(userId: UserId)
+
+    @Modifying
+    @Query("""
+        DELETE FROM NotificationEntity n
+        WHERE n.hangoutId IN :hangoutIds
+    """)
+    fun deleteByHangoutIdIn(hangoutIds: List<HangoutId>)
 }

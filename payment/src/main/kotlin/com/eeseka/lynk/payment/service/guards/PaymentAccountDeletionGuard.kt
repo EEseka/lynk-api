@@ -4,7 +4,6 @@ import com.eeseka.lynk.common.domain.AccountDeletionGuard
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.payment.domain.exception.PaymentIllegalStateException
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
-import com.eeseka.lynk.payment.domain.model.RefundStatus
 import com.eeseka.lynk.payment.infra.database.repositories.PaymentRepository
 import org.springframework.stereotype.Component
 
@@ -14,8 +13,8 @@ class PaymentAccountDeletionGuard(
 ) : AccountDeletionGuard {
     companion object {
         private val UNSETTLED_REFUND_STATUSES = listOf(
-            RefundStatus.REQUESTED,
-            RefundStatus.FAILED
+            PaymentStatus.REFUNDING,
+            PaymentStatus.REFUND_FAILED
         )
     }
 
@@ -26,7 +25,7 @@ class PaymentAccountDeletionGuard(
             )
         }
 
-        if (paymentRepository.existsByUserIdAndRefundStatusIn(userId, UNSETTLED_REFUND_STATUSES)) {
+        if (paymentRepository.existsByUserIdAndStatusIn(userId, UNSETTLED_REFUND_STATUSES)) {
             throw PaymentIllegalStateException(
                 "You are owed a refund that has not reached you yet. Once it lands you can delete your account."
             )

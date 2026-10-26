@@ -3,6 +3,7 @@ package com.eeseka.lynk.api.config
 import com.eeseka.lynk.common.api.config.IpRateLimit
 import com.eeseka.lynk.infra.rate_limiting.IpRateLimiter
 import com.eeseka.lynk.infra.rate_limiting.IpResolver
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
@@ -20,6 +21,8 @@ class IpRateLimitInterceptor(
 ) : HandlerInterceptor {
 
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
+        if (request.dispatcherType == DispatcherType.ASYNC) return true
+
         if (handler is HandlerMethod && applyLimit) {
             val annotation = handler.getMethodAnnotation(IpRateLimit::class.java)
             if (annotation != null) {

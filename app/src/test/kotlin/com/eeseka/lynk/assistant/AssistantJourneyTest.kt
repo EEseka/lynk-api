@@ -6,7 +6,7 @@ import com.eeseka.lynk.assistant.domain.model.AssistantFailureReason
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageStatus
 import com.eeseka.lynk.assistant.domain.model.DiscoverChat
-import com.eeseka.lynk.assistant.domain.model.DiscoverChatSpot
+import com.eeseka.lynk.assistant.domain.model.AssistantMessage
 import com.eeseka.lynk.assistant.infra.database.repositories.AssistantMessageRepository
 import com.eeseka.lynk.assistant.infra.database.repositories.AssistantSpotRepository
 import com.eeseka.lynk.assistant.infra.messaging.AssistantUserEventListener
@@ -34,6 +34,7 @@ import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
@@ -107,7 +108,7 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `answers in a hangout, shows the card it chose and keeps both messages`() {
+    fun `answers in a hangout and shows the card it chose and keeps both messages`() {
         val hangoutId = votingHangout(ada)
         scriptModel(
             toolCall("search_spots", """{"query":"quiet restaurant"}"""),
@@ -262,7 +263,7 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `only someone going can ask, and only while voting is open`() {
+    fun `only someone going can ask and only while voting is open`() {
         val bola = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
         val votingHangoutId = votingHangout(ada)
         val scheduledHangoutId = hangouts.scheduled(ada).id
@@ -278,7 +279,7 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `shows the chat newest first, cards from the snapshot kept with them`() {
+    fun `shows the chat newest first with cards from the snapshot kept with them`() {
         val hangoutId = votingHangout(ada)
         scriptModel(
             toolCall("search_spots", """{"query":"restaurant"}"""),
@@ -319,7 +320,7 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `clears a chat, but not while an answer is being written`() {
+    fun `clears a chat but not while an answer is being written`() {
         val hangoutId = votingHangout(ada)
         assistantMessageService.startAnswer(hangoutId, ada.userId, "Still going?")
 
@@ -389,11 +390,160 @@ class AssistantJourneyTest : IntegrationTest() {
 
         assertTrue("discoverChatId" in stream && "event:DONE" in stream)
         val saved = argumentCaptor<DiscoverChat>()
-        verify(discoverChatRepository).save(eq(ada.userId), saved.capture())
-        assertEquals(listOf("A cafe?", "This one."), saved.firstValue.messages.map { it.content })
-        assertEquals(listOf(DiscoverChatSpot(id = SPOT_ID, name = "Terra Kulture")), saved.firstValue.messages.last().spots)
+        verify(discoverChatRepository, times(2)).save(eq(ada.userId), saved.capture())
+        val answer = saved.lastValue.messages.last()
+        assertEquals(listOf("A cafe?", "This one."), saved.lastValue.messages.map { it.content })
+        assertEquals(AssistantMessageStatus.ANSWERED, answer.status)
+        assertEquals(listOf(SPOT_ID to "Quiet in the morning."), answer.recommendations.map { it.spot.id to it.reason })
         verify(discoverChatRepository).finishAnswering(ada.userId)
         assertEquals(0, assistantMessageRepository.count())
+    }
+
+    @Test
+    fun `saves a Discover question and its pending answer before the answer starts`() {
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(true)
+        scriptModel(text("This one."))
+
+        val stream = awaitAnswer(postQuestion(ada, discoverQuestion("A cafe?")))
+
+        val saved = argumentCaptor<DiscoverChat>()
+        verify(discoverChatRepository, times(2)).save(eq(ada.userId), saved.capture())
+        val started = saved.firstValue.messages
+        assertEquals(listOf(AssistantMessageRole.USER, AssistantMessageRole.ASSISTANT), started.map { it.role })
+        assertEquals(AssistantMessageStatus.PENDING, started.last().status)
+        // The phone is told which answer is being written, so it can find it again
+        assertTrue(""""messageId":"${started.last().id}"""" in stream)
+    }
+
+    @Test
+    fun `keeps a failed Discover answer as failed`() {
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(true)
+        // Nothing scripted, so the model call fails
+
+        awaitAnswer(postQuestion(ada, discoverQuestion("A cafe?")))
+
+        val saved = argumentCaptor<DiscoverChat>()
+        verify(discoverChatRepository, times(2)).save(eq(ada.userId), saved.capture())
+        val answer = saved.lastValue.messages.last()
+        assertEquals(AssistantMessageStatus.FAILED, answer.status)
+        assertEquals(AssistantFailureReason.ERROR, answer.failureReason)
+    }
+
+    @Test
+    fun `leaves a failed Discover exchange out of what the model is told`() {
+        val chatId = UUID.randomUUID()
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(true)
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(
+            DiscoverChat(
+                id = chatId,
+                messages = listOf(
+                    discoverMessage(AssistantMessageRole.USER, null, "Somewhere loud?"),
+                    discoverMessage(AssistantMessageRole.ASSISTANT, AssistantMessageStatus.FAILED, ""),
+                    discoverMessage(AssistantMessageRole.USER, null, "A cafe?"),
+                    discoverMessage(AssistantMessageRole.ASSISTANT, AssistantMessageStatus.ANSWERED, "This one.")
+                )
+            )
+        )
+        scriptModel(text("Try the same one."))
+
+        awaitAnswer(postQuestion(ada, discoverQuestion("And for dinner?", chatId = chatId)))
+
+        val told = model.prompts.single().messages.joinToString("\n") { it.textContent() }
+        assertTrue("A cafe?" in told && "This one." in told)
+        assertFalse("Somewhere loud?" in told)
+    }
+
+    @Test
+    fun `reads a Discover chat back newest first`() {
+        val chatId = UUID.randomUUID()
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(
+            DiscoverChat(
+                id = chatId,
+                messages = listOf(
+                    discoverMessage(AssistantMessageRole.USER, null, "A cafe?"),
+                    discoverMessage(AssistantMessageRole.ASSISTANT, AssistantMessageStatus.ANSWERED, "This one.")
+                )
+            )
+        )
+
+        mockMvc.get("/api/assistant/discover/$chatId/messages") {
+            authenticatedAs(ada)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].content") { value("This one.") }
+            jsonPath("$[1].content") { value("A cafe?") }
+        }
+    }
+
+    @Test
+    fun `a Discover answer nobody is still writing fails and is given back`() {
+        val chatId = UUID.randomUUID()
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(true)
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(stuckDiscoverChat(chatId))
+
+        mockMvc.get("/api/assistant/discover/$chatId/messages") {
+            authenticatedAs(ada)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].status") { value("FAILED") }
+            jsonPath("$[0].failureReason") { value("ERROR") }
+        }
+
+        val saved = argumentCaptor<DiscoverChat>()
+        verify(discoverChatRepository).save(eq(ada.userId), saved.capture())
+        assertEquals(AssistantMessageStatus.FAILED, saved.firstValue.messages.last().status)
+        verify(userRateLimiter).refund(ada.userId, AssistantService.SEND_MESSAGE_ROUTE)
+        verify(discoverChatRepository).finishAnswering(ada.userId)
+    }
+
+    @Test
+    fun `a Discover answer still being written stays pending and costs nothing back`() {
+        val chatId = UUID.randomUUID()
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(false)
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(stuckDiscoverChat(chatId))
+
+        mockMvc.get("/api/assistant/discover/$chatId/messages") {
+            authenticatedAs(ada)
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].status") { value("PENDING") }
+        }
+
+        verify(userRateLimiter, never()).refund(any(), any())
+        verify(discoverChatRepository, never()).save(any(), any())
+    }
+
+    @Test
+    fun `a stuck Discover answer is given back only once when two reads find it`() {
+        val chatId = UUID.randomUUID()
+        val failedChat = stuckDiscoverChat(chatId).let { chat ->
+            chat.copy(messages = chat.messages.map {
+                if (it.status == AssistantMessageStatus.PENDING) it.copy(status = AssistantMessageStatus.FAILED) else it
+            })
+        }
+        given(discoverChatRepository.tryStartAnswering(ada.userId)).willReturn(true)
+        // The first read sees it pending, the other read already failed it by the time this one holds the lock
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(stuckDiscoverChat(chatId), failedChat)
+
+        mockMvc.get("/api/assistant/discover/$chatId/messages") {
+            authenticatedAs(ada)
+        }.andExpect { status { isOk() } }
+
+        verify(userRateLimiter, never()).refund(any(), any())
+        verify(discoverChatRepository).finishAnswering(ada.userId)
+    }
+
+    @Test
+    fun `a Discover chat that expired cannot be read back`() {
+        val chatId = UUID.randomUUID()
+        given(discoverChatRepository.find(ada.userId, chatId)).willReturn(null)
+
+        mockMvc.get("/api/assistant/discover/$chatId/messages") {
+            authenticatedAs(ada)
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CHAT_EXPIRED") }
+        }
     }
 
     @Test
@@ -418,6 +568,24 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     private fun votingHangout(host: TestAccount): HangoutId = hangouts.scheduled(host, spotId = null).id
+
+    private fun stuckDiscoverChat(chatId: DiscoverChatId) = DiscoverChat(
+        id = chatId,
+        messages = listOf(
+            discoverMessage(AssistantMessageRole.USER, null, "A cafe?"),
+            discoverMessage(AssistantMessageRole.ASSISTANT, AssistantMessageStatus.PENDING, "")
+        )
+    )
+
+    private fun discoverMessage(role: AssistantMessageRole, status: AssistantMessageStatus?, content: String) = AssistantMessage(
+        id = UUID.randomUUID(),
+        role = role,
+        status = status,
+        content = content,
+        failureReason = null,
+        recommendations = emptyList(),
+        createdAt = Instant.now()
+    )
 
     private fun askInHangout(account: TestAccount, hangoutId: HangoutId, question: String): ResultActionsDsl =
         postQuestion(account, """{"hangoutId":"$hangoutId","content":"$question","timeZone":"Africa/Lagos"}""")

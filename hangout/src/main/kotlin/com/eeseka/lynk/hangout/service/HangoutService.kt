@@ -5,6 +5,7 @@ import com.eeseka.lynk.common.domain.events.hangout.HangoutEvent
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.message_queue.EventPublisher
+import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_GROUP
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_PAYMENTS
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_COST_PER_PERSON_KOBO
 import com.eeseka.lynk.hangout.domain.event.HangoutCancelledEvent
@@ -20,6 +21,7 @@ import com.eeseka.lynk.hangout.domain.exception.HangoutIllegalStateException
 import com.eeseka.lynk.hangout.domain.exception.HangoutNotFoundException
 import com.eeseka.lynk.hangout.domain.model.Hangout
 import com.eeseka.lynk.hangout.domain.model.HangoutPreview
+import com.eeseka.lynk.hangout.domain.model.HangoutReminderKind
 import com.eeseka.lynk.hangout.domain.model.HangoutStats
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutSummary
@@ -29,10 +31,12 @@ import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutPaymentEntity
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutReminderEntity
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangout
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangoutPreview
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangoutSummary
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRepository
+import com.eeseka.lynk.hangout.infra.database.repositories.HangoutReminderRepository
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutUserRepository
 import com.eeseka.lynk.spot.domain.model.Spot
@@ -51,6 +55,7 @@ import java.time.temporal.ChronoUnit
 class HangoutService(
     private val hangoutRepository: HangoutRepository,
     private val hangoutParticipantRepository: HangoutParticipantRepository,
+    private val hangoutReminderRepository: HangoutReminderRepository,
     private val hangoutUserRepository: HangoutUserRepository,
     private val spotService: SpotService,
     private val eventPublisher: EventPublisher,
@@ -180,9 +185,18 @@ class HangoutService(
                 this.scheduledAt = scheduledAt
                 this.maxAttendees = maxAttendees
                 this.chosenSpotId = spotId
-                if (HangoutChangeKind.SCHEDULE_CHANGED in changes) this.spotRemindersSent = 0
             }
         ).toHangout()
+        if (HangoutChangeKind.SCHEDULE_CHANGED in changes) {
+            hangoutReminderRepository.deleteByHangoutIdAndKindIn(
+                hangoutId = hangoutId,
+                kinds = listOf(
+                    HangoutReminderKind.SPOT_BEFORE_START,
+                    HangoutReminderKind.SPOT_AFTER_START,
+                    HangoutReminderKind.SOLO_BEFORE_START
+                )
+            )
+        }
 
         val hostDisplayName =
             hangoutEntity.participants.first { it.hangoutUser.userId == hostId }.hangoutUser.displayName
@@ -274,9 +288,10 @@ class HangoutService(
 
     fun getStats(userId: UserId): HangoutStats {
         return HangoutStats(
-            hostedCount = hangoutRepository.countByHostIdAndStatus(
+            hostedCount = hangoutRepository.countByHostIdAndStatusAndParticipantCountAtLeast(
                 userId = userId,
-                completedStatus = HangoutStatus.COMPLETED
+                completedStatus = HangoutStatus.COMPLETED,
+                minParticipantCount = MIN_ATTENDEES_FOR_GROUP
             ),
             attendedCount = hangoutParticipantRepository.countAttendedAsGuestByUserIdAndStatus(
                 userId = userId,
@@ -819,12 +834,13 @@ class HangoutService(
                 .filter { it.rsvpStatus == RsvpStatus.ATTENDING }
                 .map { it.hangoutUser.userId }
                 .toSet()
-            // Push: nobody is watching the clock, and this is the moment to head out.
+            // Push: nobody is watching the clock, and this is the moment to head out. A host going alone is asked to invite who came.
             eventPublisher.publish(
                 HangoutEvent.HangoutStarted(
                     hangoutId = hangout.id!!,
                     hangoutName = hangout.name,
-                    recipientIds = recipientIds
+                    recipientIds = recipientIds,
+                    isSolo = hangout.participantCount < MIN_ATTENDEES_FOR_GROUP
                 )
             )
             // Refresh the live lobby: an open list or detail still shows the hangout as upcoming.
@@ -842,19 +858,24 @@ class HangoutService(
     @Transactional
     fun remindHostsToCompleteHangouts() {
         val now = Instant.now()
-        val reminderDays = listOf(1L, 3L, 7L)
+        val reminderSteps = listOf(
+            7L to HangoutReminderKind.COMPLETION_DAY_7,
+            3L to HangoutReminderKind.COMPLETION_DAY_3,
+            1L to HangoutReminderKind.COMPLETION_DAY_1
+        )
 
-        reminderDays.forEachIndexed { remindersSent, days ->
-            val dueHangouts = hangoutRepository.findByStatusAndCompletionRemindersSentAndScheduledAtBefore(
+        reminderSteps.forEachIndexed { index, (days, kind) ->
+            val dueHangouts = hangoutRepository.findByStatusAndScheduledAtBeforeAndParticipantCountAtLeastAndNoReminderIn(
                 status = HangoutStatus.ONGOING,
-                remindersSent = remindersSent,
-                cutoff = now.minus(days, ChronoUnit.DAYS)
+                cutoff = now.minus(days, ChronoUnit.DAYS),
+                minParticipantCount = MIN_ATTENDEES_FOR_GROUP,
+                sentKinds = reminderSteps.take(index + 1).map { (_, laterKind) -> laterKind }
             )
             if (dueHangouts.isEmpty()) return@forEachIndexed
 
-            hangoutRepository.markCompletionRemindersSent(
-                ids = dueHangouts.map { it.id!! },
-                remindersSent = remindersSent + 1
+            // Flushed before any push, so a sweep that loses the unique key sends nothing
+            hangoutReminderRepository.saveAllAndFlush(
+                dueHangouts.map { HangoutReminderEntity(hangoutId = it.id!!, kind = kind) }
             )
 
             dueHangouts.forEach { hangout ->
@@ -876,13 +897,17 @@ class HangoutService(
     fun remindHostsToPickSpots() {
         val now = Instant.now()
 
-        val startedHangouts = hangoutRepository.findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
+        // A host going alone gets the solo reminder instead
+        val startedHangouts = hangoutRepository.findByStatusAndScheduledAtBeforeAndParticipantCountAtLeastAndNoReminderIn(
             status = HangoutStatus.VOTING,
-            remindersSent = 2,
-            cutoff = now
+            cutoff = now,
+            minParticipantCount = MIN_ATTENDEES_FOR_GROUP,
+            sentKinds = listOf(HangoutReminderKind.SPOT_AFTER_START)
         )
         if (startedHangouts.isNotEmpty()) {
-            hangoutRepository.markSpotRemindersSent(ids = startedHangouts.map { it.id!! }, remindersSent = 2)
+            hangoutReminderRepository.saveAllAndFlush(
+                startedHangouts.map { HangoutReminderEntity(hangoutId = it.id!!, kind = HangoutReminderKind.SPOT_AFTER_START) }
+            )
             startedHangouts.forEach { hangout ->
                 eventPublisher.publish(
                     HangoutEvent.HangoutSpotReminder(
@@ -896,14 +921,18 @@ class HangoutService(
             logger.info("Reminded {} hosts that a hangout started with no spot", startedHangouts.size)
         }
 
-        val startingHangouts = hangoutRepository.findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
+        // A hangout told it has started is past being told it is about to
+        val startingHangouts = hangoutRepository.findByStatusAndScheduledAtBeforeAndParticipantCountAtLeastAndNoReminderIn(
             status = HangoutStatus.VOTING,
-            remindersSent = 1,
-            cutoff = now.plus(1, ChronoUnit.DAYS)
+            cutoff = now.plus(1, ChronoUnit.DAYS),
+            minParticipantCount = MIN_ATTENDEES_FOR_GROUP,
+            sentKinds = listOf(HangoutReminderKind.SPOT_BEFORE_START, HangoutReminderKind.SPOT_AFTER_START)
         )
         if (startingHangouts.isEmpty()) return
 
-        hangoutRepository.markSpotRemindersSent(ids = startingHangouts.map { it.id!! }, remindersSent = 1)
+        hangoutReminderRepository.saveAllAndFlush(
+            startingHangouts.map { HangoutReminderEntity(hangoutId = it.id!!, kind = HangoutReminderKind.SPOT_BEFORE_START) }
+        )
         // A hangout made less than a day before it starts is still being planned, so its host is left alone
         val plannedAhead = startingHangouts.filter { it.createdAt.isBefore(it.scheduledAt.minus(1, ChronoUnit.DAYS)) }
         plannedAhead.forEach { hangout ->
@@ -917,6 +946,37 @@ class HangoutService(
             )
         }
         logger.info("Reminded {} hosts that a hangout starts within a day with no spot", plannedAhead.size)
+    }
+
+    @Scheduled(fixedDelay = 15 * 60 * 1000)
+    @Transactional
+    fun remindHostsOfSoloHangouts() {
+        val now = Instant.now()
+
+        val soloHangouts = hangoutRepository.findByStatusInAndScheduledAtBetweenAndParticipantCountBelowAndNoReminderIn(
+            statuses = listOf(HangoutStatus.VOTING, HangoutStatus.SCHEDULED),
+            from = now,
+            to = now.plus(1, ChronoUnit.DAYS),
+            minParticipantCount = MIN_ATTENDEES_FOR_GROUP,
+            sentKinds = listOf(HangoutReminderKind.SOLO_BEFORE_START)
+        )
+        if (soloHangouts.isEmpty()) return
+
+        hangoutReminderRepository.saveAllAndFlush(
+            soloHangouts.map { HangoutReminderEntity(hangoutId = it.id!!, kind = HangoutReminderKind.SOLO_BEFORE_START) }
+        )
+        // A hangout made less than a day before it starts is still being planned, so its host is left alone
+        val plannedAhead = soloHangouts.filter { it.createdAt.isBefore(it.scheduledAt.minus(1, ChronoUnit.DAYS)) }
+        plannedAhead.forEach { hangout ->
+            eventPublisher.publish(
+                HangoutEvent.HangoutSoloReminder(
+                    hangoutId = hangout.id!!,
+                    hangoutName = hangout.name,
+                    hostId = hangout.hostId
+                )
+            )
+        }
+        logger.info("Reminded {} hosts that nobody has joined a hangout starting within a day", plannedAhead.size)
     }
 
     @Scheduled(cron = "0 0 3 * * *")

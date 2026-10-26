@@ -12,12 +12,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.MediaType
-import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.test.web.servlet.put
 import java.time.Duration
 import java.time.Instant
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 
 /**
  * The pushes a host gets while a hangout is still voting as its date comes: one when the start is less
@@ -72,6 +70,7 @@ class HangoutSpotReminderTest : IntegrationTest() {
     fun `waits for the start of a hangout made for later the same day`() {
         val host = signIn("ada")
         val hangoutId = hangouts.scheduled(host, spotId = null).id
+        joinedByAFriend(host, hangoutId)
         fixtures.moveScheduledAt(hangoutId, Instant.now().plus(Duration.ofHours(5)))
 
         hangoutService.remindHostsToPickSpots()
@@ -111,28 +110,36 @@ class HangoutSpotReminderTest : IntegrationTest() {
     }
 
     @Test
-    fun `will not let a save from before the reminder undo it`() {
+    fun `a save from before the reminder goes through and does not undo it`() {
         val host = signIn("ada")
         val hangoutId = votingPlannedAhead(host, startsIn = Duration.ofHours(10))
         val loadedBeforeReminder = hangoutRepository.findByIdOrNull(hangoutId)!!
 
         hangoutService.remindHostsToPickSpots()
-
-        // Without the version bump this save would write the reminder count back to zero
         loadedBeforeReminder.name = "Renamed"
-        assertFailsWith<ObjectOptimisticLockingFailureException> {
-            hangoutRepository.save(loadedBeforeReminder)
-        }
+        hangoutRepository.save(loadedBeforeReminder)
+        hangoutService.remindHostsToPickSpots()
+        broker.deliverEvents()
+
+        assertEquals(1, reminders(NotificationType.SPOT_REMINDER_BEFORE_START).size)
     }
 
     private fun reminders(type: NotificationType) = notificationRepository.findAll().filter { it.type == type }
 
-    /** A hangout still voting, made days ago and starting in [startsIn]. */
+    /** A hangout still voting that a friend has joined, made days ago and starting in [startsIn]. */
     private fun votingPlannedAhead(host: TestAccount, startsIn: Duration): HangoutId {
         val hangoutId = hangouts.scheduled(host, spotId = null).id
+        joinedByAFriend(host, hangoutId)
         fixtures.ageHangout(hangoutId, Instant.now().minus(Duration.ofDays(3)))
         fixtures.moveScheduledAt(hangoutId, Instant.now().plus(startsIn))
         return hangoutId
+    }
+
+    // A host going alone gets the solo reminder instead, so these hangouts have someone else going
+    private fun joinedByAFriend(host: TestAccount, hangoutId: HangoutId) {
+        val cleo = signIn("cleo")
+        hangouts.invite(host, hangoutId, cleo)
+        hangouts.accept(cleo, hangoutId)
     }
 
     private fun moveDate(host: TestAccount, hangoutId: HangoutId, scheduledAt: Instant) {

@@ -2,6 +2,7 @@ package com.eeseka.lynk.hangout.infra.database.repositories
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.hangout.domain.model.HangoutReminderKind
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.HangoutVibe
 import com.eeseka.lynk.hangout.domain.model.PaymentState
@@ -157,49 +158,49 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         activeStatuses: Collection<HangoutStatus>
     )
 
+    // Reminder sweeps: "hangouts with people going, due a reminder, that have had none of these kinds yet"
     @Query("""
         SELECT h
         FROM HangoutEntity h
         WHERE h.status = :status
-        AND h.completionRemindersSent = :remindersSent
         AND h.scheduledAt < :cutoff
+        AND h.participantCount >= :minParticipantCount
+        AND NOT EXISTS (
+            SELECT 1
+            FROM HangoutReminderEntity r
+            WHERE r.hangoutId = h.id
+            AND r.kind IN :sentKinds
+        )
     """)
-    fun findByStatusAndCompletionRemindersSentAndScheduledAtBefore(
+    fun findByStatusAndScheduledAtBeforeAndParticipantCountAtLeastAndNoReminderIn(
         status: HangoutStatus,
-        remindersSent: Int,
-        cutoff: Instant
+        cutoff: Instant,
+        minParticipantCount: Int,
+        sentKinds: List<HangoutReminderKind>
     ): List<HangoutEntity>
 
-    // Bulk updates skip the version check, so this one bumps the version by hand
-    @Modifying
-    @Query("""
-        UPDATE HangoutEntity h
-        SET h.completionRemindersSent = :remindersSent, h.version = h.version + 1
-        WHERE h.id IN :ids
-    """)
-    fun markCompletionRemindersSent(ids: Collection<HangoutId>, remindersSent: Int)
-
+    // Solo reminder sweep: "upcoming hangouts only the host is going to, starting soon, not yet reminded"
     @Query("""
         SELECT h
         FROM HangoutEntity h
-        WHERE h.status = :status
-        AND h.spotRemindersSent < :remindersSent
-        AND h.scheduledAt < :cutoff
+        WHERE h.status IN :statuses
+        AND h.scheduledAt > :from
+        AND h.scheduledAt < :to
+        AND h.participantCount < :minParticipantCount
+        AND NOT EXISTS (
+            SELECT 1
+            FROM HangoutReminderEntity r
+            WHERE r.hangoutId = h.id
+            AND r.kind IN :sentKinds
+        )
     """)
-    fun findByStatusAndSpotRemindersSentLessThanAndScheduledAtBefore(
-        status: HangoutStatus,
-        remindersSent: Int,
-        cutoff: Instant
+    fun findByStatusInAndScheduledAtBetweenAndParticipantCountBelowAndNoReminderIn(
+        statuses: List<HangoutStatus>,
+        from: Instant,
+        to: Instant,
+        minParticipantCount: Int,
+        sentKinds: List<HangoutReminderKind>
     ): List<HangoutEntity>
-
-    // Bulk updates skip the version check, so this one bumps the version by hand
-    @Modifying
-    @Query("""
-        UPDATE HangoutEntity h
-        SET h.spotRemindersSent = :remindersSent, h.version = h.version + 1
-        WHERE h.id IN :ids
-    """)
-    fun markSpotRemindersSent(ids: Collection<HangoutId>, remindersSent: Int)
 
     // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
     @Query("""
@@ -220,8 +221,13 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         FROM HangoutEntity h
         WHERE h.hostId = :userId
         AND h.status = :completedStatus
+        AND h.participantCount >= :minParticipantCount
     """)
-    fun countByHostIdAndStatus(userId: UserId, completedStatus: HangoutStatus): Long
+    fun countByHostIdAndStatusAndParticipantCountAtLeast(
+        userId: UserId,
+        completedStatus: HangoutStatus,
+        minParticipantCount: Int
+    ): Long
 
     // Account deletion guard: a hangout this user is still hosting that has not finished.
     fun existsByHostIdAndStatusIn(hostId: UserId, statuses: Collection<HangoutStatus>): Boolean
