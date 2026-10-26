@@ -5,6 +5,7 @@ import com.eeseka.lynk.spot.domain.model.BusinessStatus
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
+import com.eeseka.lynk.spot.domain.model.TrendingSpots
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlace
 import com.eeseka.lynk.spot.infra.google_places.dto.GooglePlacesSearchResponse
 import com.eeseka.lynk.spot.infra.google_places.mappers.toSpot
@@ -38,8 +39,8 @@ class GooglePlacesClient(
 
     private val searchFieldMask = "$listFieldMask,nextPageToken"
 
-    // The address parts are only needed to keep a Top 10 inside its area
-    private val topSpotsFieldMask = "$listFieldMask,places.addressComponents"
+    // The address parts name the area trending is in and keep a Top 10 inside it
+    private val areaFieldMask = "$listFieldMask,places.addressComponents"
 
     private val detailsFieldMask = placeFields.joinToString(",")
 
@@ -47,9 +48,10 @@ class GooglePlacesClient(
         value = ["trending_spots"],
         key = "T(Math).round(#latitude * 100.0) / 100.0 + '_' + T(Math).round(#longitude * 100.0) / 100.0 + '_' + #limit"
     )
-    fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): List<Spot> {
+    fun getTrendingSpots(latitude: Double, longitude: Double, limit: Int): TrendingSpots {
         return searchNearby(latitude, longitude, limit, radiusInMeters = TRENDING_RADIUS_METERS, rankByDistance = false)
-            .ifEmpty { searchNearby(latitude, longitude, limit, radiusInMeters = TRENDING_FALLBACK_RADIUS_METERS, rankByDistance = true) }
+            .takeIf { it.spots.isNotEmpty() }
+            ?: searchNearby(latitude, longitude, limit, radiusInMeters = TRENDING_FALLBACK_RADIUS_METERS, rankByDistance = true)
     }
 
     @Cacheable(
@@ -64,7 +66,7 @@ class GooglePlacesClient(
 
         val response = googlePlacesRestClient.post()
             .uri("/places:searchText")
-            .header("X-Goog-FieldMask", topSpotsFieldMask)
+            .header("X-Goog-FieldMask", areaFieldMask)
             .body(body)
             .retrieve()
             .body<GooglePlacesSearchResponse>()
@@ -172,7 +174,7 @@ class GooglePlacesClient(
         limit: Int,
         radiusInMeters: Double,
         rankByDistance: Boolean
-    ): List<Spot> {
+    ): TrendingSpots {
         val body = mutableMapOf(
             "maxResultCount" to limit,
             "includedTypes" to GooglePlaceTypes.trendingTypes,
@@ -190,12 +192,16 @@ class GooglePlacesClient(
 
         val response = googlePlacesRestClient.post()
             .uri("/places:searchNearby")
-            .header("X-Goog-FieldMask", listFieldMask)
+            .header("X-Goog-FieldMask", areaFieldMask)
             .body(body)
             .retrieve()
             .body<GooglePlacesSearchResponse>()
 
-        return response?.places?.mapNotNull { it.toSpot() }?.filter { it.isListable() } ?: emptyList()
+        val places = response?.places.orEmpty()
+        return TrendingSpots(
+            spots = places.mapNotNull { it.toSpot() }.filter { it.isListable() },
+            areaName = places.areaName()
+        )
     }
 
     // What trending and a Top 10 suggest on their own. Search skips the category check, because whoever typed "Eko Hotel" asked for it

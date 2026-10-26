@@ -22,6 +22,7 @@ import java.time.Instant
     name = "payments",
     schema = "payment_service",
     indexes = [
+        // The partial unique index on SUCCESS rows lives only in V13; JPA cannot express it
         Index(name = "idx_payments_hangout_id", columnList = "hangout_id"),
         Index(name = "idx_payments_user_id", columnList = "user_id")
     ]

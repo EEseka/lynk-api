@@ -19,6 +19,7 @@ import java.time.Instant
     name = "refunds",
     schema = "payment_service",
     indexes = [
+        // The partial unique index on REQUESTED rows lives only in V13; JPA cannot express it
         Index(name = "idx_refunds_payment_id", columnList = "payment_id")
     ]
 )
