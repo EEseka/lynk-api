@@ -15,20 +15,20 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /**
  * Stands in for Anthropic.
  *
- * Each test scripts what the model streams back, one flow per call, in the order the calls happen.
- * A Mockito mock cannot do this: Koog marks executeStreaming as synthetic for Java callers, and Mockito
+ * Each test scripts what the model answers, one response per call, in the order the calls happen.
+ * A Mockito mock cannot do this: Koog marks execute as synthetic for Java callers, and Mockito
  * skips synthetic methods, so the mock never answers.
  */
 @Primary
 @TestComponent
 class TestModel : PromptExecutor() {
 
-    private val scriptedCalls = ConcurrentLinkedQueue<Flow<StreamFrame>>()
+    private val scriptedCalls = ConcurrentLinkedQueue<suspend () -> Message.Assistant>()
 
     /** Every prompt the model was sent, in order, so a test can read what the model was told. */
     val prompts = ConcurrentLinkedQueue<Prompt>()
 
-    fun script(vararg calls: Flow<StreamFrame>) {
+    fun script(vararg calls: suspend () -> Message.Assistant) {
         scriptedCalls.clear()
         scriptedCalls.addAll(calls)
     }
@@ -39,13 +39,14 @@ class TestModel : PromptExecutor() {
         prompts.clear()
     }
 
-    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Flow<StreamFrame> {
+    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant {
         prompts.add(prompt)
-        return scriptedCalls.poll() ?: error("The model was called more times than the test scripted")
+        val call = scriptedCalls.poll() ?: error("The model was called more times than the test scripted")
+        return call()
     }
 
-    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant =
-        error("The assistant only ever streams")
+    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Flow<StreamFrame> =
+        error("The assistant never streams")
 
     override suspend fun moderate(prompt: Prompt, model: LLModel): ModerationResult =
         error("The assistant never moderates")

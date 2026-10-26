@@ -1,6 +1,8 @@
 package com.eeseka.lynk.assistant
 
-import ai.koog.prompt.streaming.StreamFrame
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.MessagePart
+import ai.koog.prompt.message.ResponseMetaInfo
 import com.eeseka.lynk.assistant.api.controllers.AssistantController
 import com.eeseka.lynk.assistant.domain.model.AssistantFailureReason
 import com.eeseka.lynk.assistant.domain.model.AssistantMessageRole
@@ -24,8 +26,6 @@ import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.TestAccount
 import com.eeseka.lynk.support.authenticatedAs
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.BDDMockito.given
@@ -128,7 +128,7 @@ class AssistantJourneyTest : IntegrationTest() {
         assertEquals("Somewhere quiet?", messages.first { it.role == AssistantMessageRole.USER }.content)
         assertEquals(AssistantMessageStatus.ANSWERED, answer.status)
         assertEquals("Terra Kulture fits.", answer.content)
-        assertEquals(1, answer.searchCount)
+        assertEquals(1, answer.usage?.searchCount)
         assertEquals(listOf(SPOT_ID), assistantSpotRepository.findAll().map { it.googlePlaceId })
     }
 
@@ -141,14 +141,15 @@ class AssistantJourneyTest : IntegrationTest() {
                 "Terra Kulture is calm and good for groups.",
                 "recommend_spot",
                 """{"spotId":"$SPOT_ID","reason":"Calm, and good for groups."}"""
-            )
+            ),
+            text("")
         )
 
         awaitAnswer(askInHangout(ada, hangoutId, "Somewhere quiet?"))
 
         val answer = assistantMessageRepository.findAll().first { it.role == AssistantMessageRole.ASSISTANT }
         assertEquals("Terra Kulture is calm and good for groups.", answer.content)
-        assertEquals(2, model.prompts.size)
+        assertEquals(3, model.prompts.size)
     }
 
     @Test
@@ -215,12 +216,10 @@ class AssistantJourneyTest : IntegrationTest() {
     fun `turns away a second question while the first is still being answered`() {
         val hangoutId = votingHangout(ada)
         val firstAnswerMayFinish = CompletableDeferred<Unit>()
-        model.script(
-            flow {
-                firstAnswerMayFinish.await()
-                text("Done.").forEach { emit(it) }
-            }
-        )
+        model.script({
+            firstAnswerMayFinish.await()
+            text("Done.")
+        })
 
         val first = askInHangout(ada, hangoutId, "First?").andReturn()
         postQuestion(ada, """{"hangoutId":"$hangoutId","content":"Second?"}""")
@@ -240,7 +239,7 @@ class AssistantJourneyTest : IntegrationTest() {
     @Test
     fun `gives the message back when the answer fails`() {
         val hangoutId = votingHangout(ada)
-        model.script(flow { throw IllegalStateException("Anthropic is down") })
+        model.script({ throw IllegalStateException("Anthropic is down") })
 
         val stream = awaitAnswer(askInHangout(ada, hangoutId, "Anywhere?"))
 
@@ -253,7 +252,7 @@ class AssistantJourneyTest : IntegrationTest() {
     @Test
     fun `counts a refusal as a failed answer`() {
         val hangoutId = votingHangout(ada)
-        scriptModel(listOf(StreamFrame.End(finishReason = "refusal")))
+        scriptModel(Message.Assistant(parts = emptyList(), metaInfo = ResponseMetaInfo.Empty, finishReason = "refusal"))
 
         val stream = awaitAnswer(askInHangout(ada, hangoutId, "Anywhere?"))
 
@@ -610,27 +609,27 @@ class AssistantJourneyTest : IntegrationTest() {
         return result.response.contentAsString
     }
 
-    // One list of frames per call to the model, in the order the calls happen
-    private fun scriptModel(vararg calls: List<StreamFrame>) {
-        model.script(*calls.map { flowOf(*it.toTypedArray()) }.toTypedArray())
+    // One response per call to the model, in the order the calls happen
+    private fun scriptModel(vararg calls: Message.Assistant) {
+        model.script(*calls.map { response -> suspend { response } }.toTypedArray())
     }
 
-    private fun toolCall(name: String, args: String): List<StreamFrame> = listOf(
-        StreamFrame.ToolCallComplete(id = "call_${UUID.randomUUID()}", name = name, content = args),
-        StreamFrame.End(finishReason = "tool_use")
+    private fun toolCall(name: String, args: String) = Message.Assistant(
+        parts = listOf(MessagePart.Tool.Call(id = "call_${UUID.randomUUID()}", tool = name, args = args)),
+        metaInfo = ResponseMetaInfo.Empty,
+        finishReason = "tool_use"
     )
 
-    private fun textThenToolCall(words: String, name: String, args: String): List<StreamFrame> = listOf(
-        StreamFrame.TextDelta(words),
-        StreamFrame.TextComplete(words),
-        StreamFrame.ToolCallComplete(id = "call_${UUID.randomUUID()}", name = name, content = args),
-        StreamFrame.End(finishReason = "tool_use")
+    private fun textThenToolCall(words: String, name: String, args: String) = Message.Assistant(
+        parts = listOf(MessagePart.Text(words), MessagePart.Tool.Call(id = "call_${UUID.randomUUID()}", tool = name, args = args)),
+        metaInfo = ResponseMetaInfo.Empty,
+        finishReason = "tool_use"
     )
 
-    private fun text(words: String): List<StreamFrame> = listOf(
-        StreamFrame.TextDelta(words),
-        StreamFrame.TextComplete(words),
-        StreamFrame.End(finishReason = "end_turn")
+    private fun text(words: String) = Message.Assistant(
+        parts = listOf(MessagePart.Text(words)),
+        metaInfo = ResponseMetaInfo.Empty,
+        finishReason = "end_turn"
     )
 
     private fun spot(id: String, name: String) = Spot(

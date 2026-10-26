@@ -1,10 +1,11 @@
 package com.eeseka.lynk.assistant
 
-import ai.koog.prompt.streaming.StreamFrame
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.MessagePart
+import ai.koog.prompt.message.ResponseMetaInfo
 import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
 import com.eeseka.lynk.support.IntegrationTest
 import com.eeseka.lynk.support.authenticatedAs
-import kotlinx.coroutines.flow.flowOf
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
@@ -37,7 +38,7 @@ class AssistantStreamRateLimitTest : IntegrationTest() {
 
         val ada = accounts.signIn(email = "ada@lynk.test", displayName = "Ada", username = "ada")
         val hangoutId = hangouts.scheduled(ada, spotId = null).id
-        model.script(flowOf(StreamFrame.TextDelta("Hi."), StreamFrame.TextComplete("Hi."), StreamFrame.End(finishReason = "end_turn")))
+        model.script({ Message.Assistant(parts = listOf(MessagePart.Text("Hi.")), metaInfo = ResponseMetaInfo.Empty, finishReason = "end_turn") })
 
         val result = mockMvc.post("/api/assistant/messages") {
             contentType = MediaType.APPLICATION_JSON
