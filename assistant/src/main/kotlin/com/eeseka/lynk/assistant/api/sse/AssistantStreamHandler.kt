@@ -51,14 +51,12 @@ class AssistantStreamHandler {
     }
 
     private fun send(emitter: SseEmitter, event: SseEmitter.SseEventBuilder) {
-        synchronized(emitter) {
-            try {
-                emitter.send(event)
-            } catch (_: IOException) {
-                openStreams.remove(emitter)
-            } catch (_: IllegalStateException) {
-                openStreams.remove(emitter)
-            }
+        try {
+            emitter.send(event)
+        } catch (_: IOException) {
+            openStreams.remove(emitter)
+        } catch (_: IllegalStateException) {
+            openStreams.remove(emitter)
         }
     }
 

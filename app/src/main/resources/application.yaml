@@ -5,10 +5,9 @@ spring:
   autoconfigure:
     exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
 
-  task:
-    scheduling:
-      pool:
-        size: 4
+  threads:
+    virtual:
+      enabled: true
 
   data:
     redis:
