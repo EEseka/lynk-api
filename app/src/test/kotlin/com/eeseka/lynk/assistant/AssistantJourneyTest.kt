@@ -19,6 +19,7 @@ import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.domain.type.DiscoverChatId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
+import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
@@ -37,6 +38,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.MediaType
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
@@ -80,6 +82,9 @@ class AssistantJourneyTest : IntegrationTest() {
 
     @Autowired
     private lateinit var assistantUserEventListener: AssistantUserEventListener
+
+    @Autowired
+    private lateinit var hangoutRepository: HangoutRepository
 
     // Tests run without Redis, so Discover's chats are held here instead
     @MockitoBean
@@ -181,6 +186,32 @@ class AssistantJourneyTest : IntegrationTest() {
 
         val history = model.prompts.last().messages.joinToString("\n") { it.textContent() }
         assertTrue("Terra Kulture [spotId $SPOT_ID]" in history)
+    }
+
+    @Test
+    fun `tells the model the time now and to look at opening hours for the hangout`() {
+        val hangoutId = votingHangout(ada)
+        scriptModel(text("Sure."))
+
+        awaitAnswer(askInHangout(ada, hangoutId, "Anywhere?"))
+
+        val told = model.prompts.single().messages
+        assertTrue("isOpenAtHangoutTime" in told.first().textContent())
+        assertTrue(told.last().textContent().startsWith("<now>"))
+    }
+
+    @Test
+    fun `tells the model to look at opening hours right now once the start time has passed`() {
+        val hangoutId = votingHangout(ada)
+        val hangout = hangoutRepository.findByIdOrNull(hangoutId)!!
+        hangoutRepository.save(hangout.apply { scheduledAt = Instant.now().minus(3, ChronoUnit.DAYS) })
+        scriptModel(text("Sure."))
+
+        awaitAnswer(askInHangout(ada, hangoutId, "Anywhere open?"))
+
+        val system = model.prompts.single().messages.first().textContent()
+        assertTrue("isOpenNow" in system)
+        assertFalse("isOpenAtHangoutTime" in system)
     }
 
     @Test
