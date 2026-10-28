@@ -48,6 +48,7 @@ object AssistantPrompts {
         hangout: Hangout,
         ballot: List<Spot>,
         hasGroupCenter: Boolean,
+        hasStarted: Boolean,
         zoneId: ZoneId,
         history: List<AssistantMessage>,
         question: String
@@ -61,9 +62,14 @@ object AssistantPrompts {
             hangout.description?.takeIf { it.isNotBlank() }?.let { appendLine("Description: $it") }
             appendLine("When: ${hangout.scheduledAt.atZone(zoneId).format(dateTimeFormatter)}")
             appendLine("</hangout>")
-            appendLine("Prefer places where isOpenAtHangoutTime is true, and say so when a good one is closed then.")
-            if (hangout.scheduledAt.isAfter(Instant.now().plus(7, ChronoUnit.DAYS))) {
-                appendLine("isOpenAtHangoutTime uses each place's usual weekly hours. Mention once that hours can differ on holidays.")
+            appendLine("Their newest message starts with the time where they are, inside <now> tags.")
+            if (hasStarted) {
+                appendLine("The start time has passed and the group has not picked a spot yet. isOpenNow says whether a place is open right now.")
+            } else {
+                appendLine("Prefer places where isOpenAtHangoutTime is true, and say so when a good one is closed then.")
+                if (hangout.scheduledAt.isAfter(Instant.now().plus(7, ChronoUnit.DAYS))) {
+                    appendLine("isOpenAtHangoutTime uses each place's usual weekly hours. Mention once that hours can differ on holidays.")
+                }
             }
             if (hasGroupCenter) {
                 appendLine("Searches run around the middle of where everyone is, and distanceKm is from there.")
@@ -80,10 +86,12 @@ object AssistantPrompts {
             }
         }
 
+        val now = Instant.now().atZone(zoneId).format(dateTimeFormatter)
+
         return prompt("assistant-hangout", params()) {
             system("$rules\n\n$context")
             chatHistory(history.asReversed())
-            user(question)
+            user("<now>$now</now>\n\n$question")
         }
     }
 

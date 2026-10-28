@@ -181,11 +181,13 @@ class AssistantService(
         val hangout = hangoutService.getHangout(userId, hangoutId)
         val votingSnapshot = lobbyVotingService.getVotingSnapshot(hangoutId)
         val history = assistantMessageService.getMessages(hangoutId, userId, before = null, pageSize = HISTORY_MESSAGES)
+        val hasStarted = !hangout.scheduledAt.isAfter(Instant.now())
 
         val prompt = AssistantPrompts.hangoutPrompt(
             hangout = hangout,
             ballot = votingSnapshot.candidates,
             hasGroupCenter = votingSnapshot.centerLatitude != null,
+            hasStarted = hasStarted,
             zoneId = zoneId,
             history = history,
             question = question
@@ -194,7 +196,7 @@ class AssistantService(
             userId = userId,
             searchLatitude = votingSnapshot.centerLatitude,
             searchLongitude = votingSnapshot.centerLongitude,
-            hangoutTime = hangout.scheduledAt,
+            hangoutTime = hangout.scheduledAt.takeUnless { hasStarted },
             ballotSpotIds = votingSnapshot.candidates.map { it.id },
             earlierRecommendedSpotIds = history.flatMap { message -> message.recommendations.map { it.spot.id } }.distinct()
         )
