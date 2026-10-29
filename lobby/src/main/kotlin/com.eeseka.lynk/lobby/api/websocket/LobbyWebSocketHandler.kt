@@ -452,7 +452,6 @@ class LobbyWebSocketHandler(
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onHangoutCompleted(event: HangoutCompletedEvent) {
-        // Terminal: tell everyone FIRST, then tear the whole hangout out of the maps.
         broadcastToHangout(
             hangoutId = event.hangoutId,
             message = OutgoingWebSocketMessage(
@@ -465,12 +464,11 @@ class LobbyWebSocketHandler(
                 )
             )
         )
-        purgeHangout(event.hangoutId)
+        lobbyVotingService.clearVotingState(event.hangoutId)
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onHangoutCancelled(event: HangoutCancelledEvent) {
-        // Terminal: tell everyone FIRST, then tear the whole hangout out of the maps.
         broadcastToHangout(
             hangoutId = event.hangoutId,
             message = OutgoingWebSocketMessage(
@@ -483,7 +481,7 @@ class LobbyWebSocketHandler(
                 )
             )
         )
-        purgeHangout(event.hangoutId)
+        lobbyVotingService.clearVotingState(event.hangoutId)
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -588,21 +586,6 @@ class LobbyWebSocketHandler(
                 )
             }
         }
-    }
-
-    // A completed/canceled hangout is gone: drop it from every map entirely,
-    // including presence (viewers/viewing) so no stale green dots linger.
-    private fun purgeHangout(hangoutId: HangoutId) {
-        connectionLock.write {
-            hangoutToSessions.remove(hangoutId)
-            userHangoutIds.entries.removeIf { (_, ids) ->
-                ids.remove(hangoutId)
-                ids.isEmpty()
-            }
-            hangoutViewers.remove(hangoutId)
-            sessionViewing.values.removeIf { it == hangoutId }
-        }
-        lobbyVotingService.clearVotingState(hangoutId)
     }
 
     // Nominate a spot as a voting candidate: fetch its details, dedupe, cap, broadcast.
