@@ -759,10 +759,7 @@ class LobbyWebSocketHandler(
             sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
             return
         }
-        if (!hangoutService.isVotingOpen(hangoutId)) {
-            sendError(userSession.session, ErrorDto("VOTING_CLOSED", "Voting is not open for this hangout"))
-            return
-        }
+        if (!hangoutService.isVotingOpen(hangoutId)) return
 
         lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
 
