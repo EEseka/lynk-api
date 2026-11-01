@@ -39,7 +39,7 @@ class AssistantToolService(
     val toolDescriptors: List<ToolDescriptor> = listOf(
         ToolDescriptor(
             name = AssistantToolName.SEARCH_SPOTS.wireName,
-            description = "Search Google Places for spots to hang out, around the group or the area being looked at. " +
+            description = "Search Google Places for spots to hang out, around the group, the chosen spot or the area being looked at. " +
                     "Returns up to 10 places, best rated first. You can search at most $MAX_SEARCHES_PER_ANSWER times per answer, so make each one count.",
             requiredParameters = listOf(
                 ToolParameterDescriptor(
@@ -67,11 +67,11 @@ class AssistantToolService(
         ToolDescriptor(
             name = AssistantToolName.GET_SPOT_DETAILS.wireName,
             description = "Opening hours for the week, amenities, parking and payment options for one place. " +
-                    "Only for places from your searches, the ballot or earlier cards.",
+                    "Only for places from your searches, the ballot, the chosen spot or earlier cards.",
             requiredParameters = listOf(
                 ToolParameterDescriptor(
                     name = "spotId",
-                    description = "The spotId exactly as a search, the ballot or an earlier card gave it.",
+                    description = "The spotId exactly as a search, the ballot, the chosen spot or an earlier card gave it.",
                     type = ToolParameterType.String
                 )
             )
@@ -80,11 +80,11 @@ class AssistantToolService(
             name = AssistantToolName.RECOMMEND_SPOT.wireName,
             description = "Show one place to the user as a card. " +
                     "Call it once per place you recommend, at most $MAX_RECOMMENDATIONS_PER_ANSWER times per answer. " +
-                    "Only for places from your searches, the ballot or earlier cards.",
+                    "Only for places from your searches, the ballot, the chosen spot or earlier cards.",
             requiredParameters = listOf(
                 ToolParameterDescriptor(
                     name = "spotId",
-                    description = "The spotId exactly as a search, the ballot or an earlier card gave it.",
+                    description = "The spotId exactly as a search, the ballot, the chosen spot or an earlier card gave it.",
                     type = ToolParameterType.String
                 ),
                 ToolParameterDescriptor(
@@ -148,7 +148,7 @@ class AssistantToolService(
 
     private fun getSpotDetails(args: GetSpotDetailsArgsDto, turn: AssistantTurn): AssistantToolResult {
         val spot = findAllowedSpot(args.spotId, turn)
-            ?: return error("Only look up places from your searches, the ballot or earlier cards.")
+            ?: return error("Only look up places from your searches, the ballot, the chosen spot or earlier cards.")
 
         return ok(spot.toSpotDetailsDto(turn))
     }
@@ -168,7 +168,7 @@ class AssistantToolService(
             return error("Keep the reason under $MAX_REASON_LENGTH characters and add the card again.")
         }
         val spot = findAllowedSpot(args.spotId, turn)
-            ?: return error("Only recommend places from your searches, the ballot or earlier cards.")
+            ?: return error("Only recommend places from your searches, the ballot, the chosen spot or earlier cards.")
 
         turn.recommendations.add(AssistantRecommendation(spot = spot, reason = reason))
         return ok("Card ${turn.recommendations.size} of at most $MAX_RECOMMENDATIONS_PER_ANSWER added.")

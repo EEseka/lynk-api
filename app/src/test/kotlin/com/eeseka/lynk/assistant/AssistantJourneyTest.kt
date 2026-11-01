@@ -20,6 +20,7 @@ import com.eeseka.lynk.common.domain.type.DiscoverChatId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
+import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.spot.domain.model.PriceLevel
 import com.eeseka.lynk.spot.domain.model.Spot
 import com.eeseka.lynk.spot.domain.model.SpotCategory
@@ -85,6 +86,9 @@ class AssistantJourneyTest : IntegrationTest() {
 
     @Autowired
     private lateinit var hangoutRepository: HangoutRepository
+
+    @Autowired
+    private lateinit var hangoutService: HangoutService
 
     // Tests run without Redis, so Discover's chats are held here instead
     @MockitoBean
@@ -293,19 +297,63 @@ class AssistantJourneyTest : IntegrationTest() {
     }
 
     @Test
-    fun `only someone going can ask and only while voting is open`() {
+    fun `only someone going can ask and only until the hangout ends`() {
         val bola = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
         val votingHangoutId = votingHangout(ada)
-        val scheduledHangoutId = hangouts.scheduled(ada).id
+        val completedHangoutId = hangouts.completed(ada)
 
         postQuestion(bola, """{"hangoutId":"$votingHangoutId","content":"Anywhere?"}""")
             .andExpect { status { isForbidden() }; jsonPath("$.code") { value("NOT_ATTENDING") } }
-        postQuestion(ada, """{"hangoutId":"$scheduledHangoutId","content":"Anywhere?"}""")
-            .andExpect { status { isConflict() }; jsonPath("$.code") { value("VOTING_CLOSED") } }
+        postQuestion(ada, """{"hangoutId":"$completedHangoutId","content":"Anywhere?"}""")
+            .andExpect { status { isConflict() }; jsonPath("$.code") { value("HANGOUT_ENDED") } }
 
         verify(userRateLimiter).refund(bola.userId, AssistantService.SEND_MESSAGE_ROUTE)
         verify(userRateLimiter).refund(ada.userId, AssistantService.SEND_MESSAGE_ROUTE)
         assertEquals(0, assistantMessageRepository.count())
+    }
+
+    @Test
+    fun `searches around the chosen spot once voting is over and can open it without a search`() {
+        val hangoutId = hangouts.scheduled(ada, spotId = SPOT_ID).id
+        scriptModel(
+            toolCall("get_spot_details", """{"spotId":"$SPOT_ID"}"""),
+            toolCall("search_spots", """{"query":"dessert"}"""),
+            text("Terra Kulture has what you need.")
+        )
+
+        val stream = awaitAnswer(askInHangout(ada, hangoutId, "Anywhere for dessert after?"))
+
+        assertTrue("event:DONE" in stream)
+        verify(googlePlacesClient).searchSpots(eq(LATITUDE), eq(LONGITUDE), any(), anyOrNull(), anyOrNull(), anyOrNull())
+
+        val system = model.prompts.first().messages.first().textContent()
+        assertTrue("Chosen spot: Terra Kulture" in system)
+        assertTrue("This user is the host" in system)
+        assertFalse("Suggest button" in system)
+    }
+
+    @Test
+    fun `tells the model the spot is locked once payments are on`() {
+        val paid = hangouts.withPaymentsOn(totalCostKobo = 1_000_000)
+        scriptModel(text("Sure."))
+
+        awaitAnswer(askInHangout(paid.host, paid.hangoutId, "Can we move it?"))
+
+        assertTrue("Payments are on" in model.prompts.single().messages.first().textContent())
+    }
+
+    @Test
+    fun `tells the model the spot cannot change while the hangout is happening`() {
+        val hangoutId = hangouts.scheduled(ada, spotId = SPOT_ID).id
+        fixtures.moveScheduledAt(hangoutId, Instant.now().minus(1, ChronoUnit.HOURS))
+        hangoutService.transitionDueHangoutsToOngoing()
+        scriptModel(text("Sure."))
+
+        awaitAnswer(askInHangout(ada, hangoutId, "Can we move it?"))
+
+        val system = model.prompts.single().messages.first().textContent()
+        assertTrue("happening now" in system)
+        assertTrue("isOpenNow" in system)
     }
 
     @Test

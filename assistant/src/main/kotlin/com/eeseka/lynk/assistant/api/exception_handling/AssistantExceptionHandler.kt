@@ -2,9 +2,9 @@ package com.eeseka.lynk.assistant.api.exception_handling
 
 import com.eeseka.lynk.assistant.domain.exception.AssistantAnswerInProgressException
 import com.eeseka.lynk.assistant.domain.exception.AssistantDisabledException
+import com.eeseka.lynk.assistant.domain.exception.AssistantHangoutEndedException
 import com.eeseka.lynk.assistant.domain.exception.AssistantIllegalArgumentException
 import com.eeseka.lynk.assistant.domain.exception.AssistantNotAttendingException
-import com.eeseka.lynk.assistant.domain.exception.AssistantVotingClosedException
 import com.eeseka.lynk.assistant.domain.exception.DiscoverChatExpiredException
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -28,10 +28,10 @@ class AssistantExceptionHandler {
         "message" to e.message
     )
 
-    @ExceptionHandler(AssistantVotingClosedException::class)
+    @ExceptionHandler(AssistantHangoutEndedException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
-    fun onVotingClosed(e: AssistantVotingClosedException) = mapOf(
-        "code" to "VOTING_CLOSED",
+    fun onHangoutEnded(e: AssistantHangoutEndedException) = mapOf(
+        "code" to "HANGOUT_ENDED",
         "message" to e.message
     )
 

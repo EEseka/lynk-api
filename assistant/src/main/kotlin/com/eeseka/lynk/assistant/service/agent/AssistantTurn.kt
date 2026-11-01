@@ -8,7 +8,7 @@ import java.time.Instant
 // What one answer may draw on, and what it has done so far. Lives for a single send
 class AssistantTurn(
     val userId: UserId,
-    val searchLatitude: Double?, // The group center in a hangout, the searched area in Discover
+    val searchLatitude: Double?, // The chosen spot or group center in a hangout, the searched area in Discover
     val searchLongitude: Double?,
     val hangoutTime: Instant?,
     val ballotSpotIds: List<String>,

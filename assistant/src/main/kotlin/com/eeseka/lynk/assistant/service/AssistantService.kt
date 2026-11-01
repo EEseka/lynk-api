@@ -3,10 +3,10 @@ package com.eeseka.lynk.assistant.service
 import ai.koog.prompt.Prompt
 import com.eeseka.lynk.assistant.domain.exception.AssistantAnswerInProgressException
 import com.eeseka.lynk.assistant.domain.exception.AssistantDisabledException
+import com.eeseka.lynk.assistant.domain.exception.AssistantHangoutEndedException
 import com.eeseka.lynk.assistant.domain.exception.AssistantIllegalArgumentException
 import com.eeseka.lynk.assistant.domain.exception.AssistantNotAttendingException
 import com.eeseka.lynk.assistant.domain.exception.AssistantRefusedException
-import com.eeseka.lynk.assistant.domain.exception.AssistantVotingClosedException
 import com.eeseka.lynk.assistant.domain.exception.DiscoverChatExpiredException
 import com.eeseka.lynk.assistant.domain.model.AssistantAnswer
 import com.eeseka.lynk.assistant.domain.model.AssistantFailureReason
@@ -24,6 +24,7 @@ import com.eeseka.lynk.common.domain.type.DiscoverChatId
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.rate_limiting.UserRateLimiter
+import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.service.HangoutParticipantService
 import com.eeseka.lynk.hangout.service.HangoutService
@@ -176,15 +177,20 @@ class AssistantService(
         if (hangoutParticipantService.findRsvpStatus(hangoutId, userId) != RsvpStatus.ATTENDING) {
             throw AssistantNotAttendingException()
         }
-        if (!hangoutService.isVotingOpen(hangoutId)) throw AssistantVotingClosedException()
 
-        val hangout = hangoutService.getHangout(userId, hangoutId)
+        val (hangout, chosenSpot) = hangoutService.getHangoutDetails(userId, hangoutId)
+        if (hangout.status == HangoutStatus.COMPLETED || hangout.status == HangoutStatus.CANCELLED) {
+            throw AssistantHangoutEndedException()
+        }
+
         val votingSnapshot = lobbyVotingService.getVotingSnapshot(hangoutId)
         val history = assistantMessageService.getMessages(hangoutId, userId, before = null, pageSize = HISTORY_MESSAGES)
         val hasStarted = !hangout.scheduledAt.isAfter(Instant.now())
 
         val prompt = AssistantPrompts.hangoutPrompt(
             hangout = hangout,
+            chosenSpot = chosenSpot,
+            isHost = hangout.hostId == userId,
             ballot = votingSnapshot.candidates,
             hasGroupCenter = votingSnapshot.centerLatitude != null,
             hasStarted = hasStarted,
@@ -194,12 +200,13 @@ class AssistantService(
         )
         val turn = AssistantTurn(
             userId = userId,
-            searchLatitude = votingSnapshot.centerLatitude,
-            searchLongitude = votingSnapshot.centerLongitude,
+            searchLatitude = chosenSpot?.latitude ?: votingSnapshot.centerLatitude,
+            searchLongitude = chosenSpot?.longitude ?: votingSnapshot.centerLongitude,
             hangoutTime = hangout.scheduledAt.takeUnless { hasStarted },
             ballotSpotIds = votingSnapshot.candidates.map { it.id },
             earlierRecommendedSpotIds = history.flatMap { message -> message.recommendations.map { it.spot.id } }.distinct()
         )
+        chosenSpot?.let { turn.seenSpots[it.id] = it }
 
         val messageId = try {
             assistantMessageService.startAnswer(hangoutId, userId, question)
