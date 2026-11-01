@@ -7,15 +7,18 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.payment.api.dto.BankAccountDto
 import com.eeseka.lynk.payment.api.dto.BankDto
 import com.eeseka.lynk.payment.api.dto.ChangeDeadlineRequest
+import com.eeseka.lynk.payment.api.dto.ChangePayoutAccountRequest
 import com.eeseka.lynk.payment.api.dto.DeadlineDecisionRequest
 import com.eeseka.lynk.payment.api.dto.EnablePaymentsRequest
 import com.eeseka.lynk.payment.api.dto.PaymentInitializationDto
 import com.eeseka.lynk.payment.api.dto.PaymentSettingsDto
 import com.eeseka.lynk.payment.api.dto.PaymentVerificationDto
+import com.eeseka.lynk.payment.api.dto.PayoutAccountDto
 import com.eeseka.lynk.payment.api.mappers.toBankAccountDto
 import com.eeseka.lynk.payment.api.mappers.toBankDto
 import com.eeseka.lynk.payment.api.mappers.toPaymentInitializationDto
 import com.eeseka.lynk.payment.api.mappers.toPaymentSettingsDto
+import com.eeseka.lynk.payment.api.mappers.toPayoutAccountDto
 import com.eeseka.lynk.payment.service.BankAccountService
 import com.eeseka.lynk.payment.service.PaymentDeadlineService
 import com.eeseka.lynk.payment.service.PaymentInitiationService
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -56,7 +60,7 @@ class PaymentController(
 
     @GetMapping("/bank-account")
     @UserRateLimit(
-        requests = 5,
+        requests = 10,
         duration = 1L,
         unit = TimeUnit.HOURS,
         whenRedisIsDown = WhenRedisIsDown.REFUSE
@@ -74,6 +78,12 @@ class PaymentController(
     }
 
     @PatchMapping("/hangouts/{hangoutId}")
+    @UserRateLimit(
+        requests = 10,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
     fun enablePayments(
         @PathVariable hangoutId: HangoutId,
         @Valid @RequestBody body: EnablePaymentsRequest
@@ -134,6 +144,36 @@ class PaymentController(
             hangoutId = hangoutId,
             decision = body.decision,
             newDeadline = body.newDeadline
+        )
+    }
+
+    @GetMapping("/hangouts/{hangoutId}/payout-account")
+    fun getPayoutAccount(
+        @PathVariable hangoutId: HangoutId
+    ): PayoutAccountDto {
+        return paymentSetupService.getPayoutAccount(
+            hostId = requestUserId,
+            hangoutId = hangoutId
+        ).toPayoutAccountDto()
+    }
+
+    @PutMapping("/hangouts/{hangoutId}/payout-account")
+    @UserRateLimit(
+        requests = 10,
+        duration = 1L,
+        unit = TimeUnit.HOURS,
+        whenRedisIsDown = WhenRedisIsDown.REFUSE
+    )
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun changePayoutAccount(
+        @PathVariable hangoutId: HangoutId,
+        @Valid @RequestBody body: ChangePayoutAccountRequest
+    ) {
+        paymentSetupService.changePayoutAccount(
+            hostId = requestUserId,
+            hangoutId = hangoutId,
+            accountNumber = body.accountNumber,
+            bankCode = body.bankCode
         )
     }
 

@@ -53,6 +53,13 @@ import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+private val PAYOUT_ACCOUNT_CHANGEABLE_STATES = setOf(
+    PaymentState.COLLECTING,
+    PaymentState.AWAITING_HOST_DECISION,
+    PaymentState.READY_FOR_PAYOUT,
+    PaymentState.PAYOUT_FAILED
+)
+
 @Service
 class HangoutService(
     private val hangoutRepository: HangoutRepository,
@@ -486,6 +493,9 @@ class HangoutService(
 
     @Transactional
     fun markPayoutInFlight(hangoutId: HangoutId) {
+        // Waits for a payout account change that is already saving, so the transfer goes to the new account.
+        hangoutRepository.lockById(hangoutId)
+
         val hangoutEntity = hangoutRepository.findByIdOrNull(hangoutId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
         val payment = hangoutEntity.payment
@@ -560,6 +570,28 @@ class HangoutService(
         hangoutRepository.save(
             hangoutEntity.apply { payment.state = PaymentState.READY_FOR_PAYOUT }
         )
+    }
+
+    /**
+     * The same check under the row lock markPayoutInFlight also takes, so a change and a sweep can
+     * never overlap. Must run inside the caller's transaction, which holds the lock until it saves.
+     */
+    @Transactional
+    fun lockPayoutAccountForChange(hostId: UserId, hangoutId: HangoutId) {
+        hangoutRepository.lockById(hangoutId)
+        assertPayoutAccountCanChange(hostId = hostId, hangoutId = hangoutId)
+    }
+
+    fun assertPayoutAccountCanChange(hostId: UserId, hangoutId: HangoutId) {
+        val hangoutEntity = hangoutRepository.findHangoutById(hangoutId, hostId)
+            ?: throw HangoutNotFoundException(hangoutId.toString())
+
+        if (hangoutEntity.hostId != hostId) {
+            throw HangoutAccessDeniedException("Only the host can change where their payout goes.")
+        }
+        if (hangoutEntity.payment?.state !in PAYOUT_ACCOUNT_CHANGEABLE_STATES) {
+            throw HangoutIllegalStateException("This hangout's payout account can no longer be changed.")
+        }
     }
 
     /**

@@ -150,8 +150,7 @@ class LobbyWebSocketHandler(
         // Their dot goes out for whichever lobby they were viewing.
         viewingHangout?.let { broadcastPresence(it) }
 
-        // A clean close means they left the app. A dropped connection keeps their last position
-        // on the map, marked stale, because they may only have lost signal on the way there.
+        // They left the app. A dropped connection stays on the map: they may have just lost signal.
         if (status.code == CloseStatus.NORMAL.code) {
             closedUserId?.let { userId ->
                 hangoutsLeft.forEach { hangoutId -> stopLiveLocation(hangoutId, userId) }

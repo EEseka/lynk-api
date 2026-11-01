@@ -161,7 +161,7 @@ class PaystackClient(
     fun createTransferRecipient(bankAccount: BankAccount): String {
         val body = mapOf(
             "type" to "nuban",
-            "name" to bankAccount.accountName,
+            "name" to bankAccount.accountHolderName,
             "account_number" to bankAccount.accountNumber,
             "bank_code" to bankAccount.bankCode,
             "currency" to "NGN"

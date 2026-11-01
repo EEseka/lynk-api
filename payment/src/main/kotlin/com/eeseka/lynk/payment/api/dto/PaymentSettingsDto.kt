@@ -8,7 +8,5 @@ data class PaymentSettingsDto(
     val totalCostKobo: Long,
     val costPerPersonKobo: Long,
     val paymentDeadline: Instant,
-    val bankName: String?,
-    val accountNumberLast4: String,
-    val accountHolderName: String
+    val payoutAccount: PayoutAccountDto
 )

@@ -6,6 +6,7 @@ import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.payment.domain.exception.PaymentIllegalStateException
 import com.eeseka.lynk.payment.domain.exception.PayoutRejectedException
 import com.eeseka.lynk.payment.domain.exception.PaystackUnavailableException
+import com.eeseka.lynk.payment.domain.model.BankAccount
 import com.eeseka.lynk.payment.domain.model.PaymentStatus
 import com.eeseka.lynk.payment.domain.model.PayoutStatus
 import com.eeseka.lynk.payment.infra.database.entities.HangoutPayoutAccountEntity
@@ -72,6 +73,33 @@ class PayoutService(
 
     fun retryPayout(hostId: UserId, hangoutId: HangoutId) {
         hangoutService.retryPayout(hostId = hostId, hangoutId = hangoutId)
+    }
+
+    @Transactional
+    fun replacePayoutAccount(
+        hostId: UserId,
+        hangoutId: HangoutId,
+        recipientCode: String,
+        bankName: String?,
+        bankAccount: BankAccount
+    ) {
+        hangoutService.lockPayoutAccountForChange(hostId = hostId, hangoutId = hangoutId)
+
+        if (payoutRepository.findByHangoutIdAndStatus(hangoutId, PayoutStatus.IN_FLIGHT) != null) {
+            throw PaymentIllegalStateException("A payout is on its way, so its account can no longer be changed.")
+        }
+
+        val payoutAccount = hangoutPayoutAccountRepository.findByHangoutId(hangoutId)
+            ?: throw PaymentIllegalStateException("This hangout has no payout account.")
+
+        hangoutPayoutAccountRepository.save(
+            payoutAccount.apply {
+                this.recipientCode = recipientCode
+                this.bankName = bankName
+                this.accountNumberLast4 = bankAccount.accountNumber.takeLast(4)
+                this.accountHolderName = bankAccount.accountHolderName
+            }
+        )
     }
 
     // A canceled hangout is never paid out, so the host's bank details have nothing left to do.
@@ -155,9 +183,13 @@ class PayoutService(
             )
         hangoutService.markPayoutInFlight(hangoutId)
 
+        // Read again now the hangout is in flight: the host may have changed the account since the sweep began.
+        val recipientCode = hangoutPayoutAccountRepository.findByHangoutId(hangoutId)?.recipientCode
+            ?: throw PaymentIllegalStateException("This hangout has no payout account.")
+
         try {
             paystackClient.transfer(
-                recipientCode = payoutAccount.recipientCode,
+                recipientCode = recipientCode,
                 amountKobo = payout.amountKobo,
                 reference = payout.reference,
                 reason = "Lynk hangout payout"

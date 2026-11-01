@@ -42,7 +42,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
 
         val BANK_ACCOUNT = BankAccount(
             accountNumber = ACCOUNT_NUMBER,
-            accountName = "Ada Eze",
+            accountHolderName = "Ada Eze",
             bankCode = BANK_CODE
         )
     }
@@ -57,7 +57,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
         )
         given(bankLogoClient.getLogoUrlsByBankCode()).willReturn(emptyMap())
         given(paystackClient.resolveAccount(anyString(), anyString())).willReturn(
-            BankAccount(accountNumber = ACCOUNT_NUMBER, accountName = "Ada Eze", bankCode = BANK_CODE)
+            BankAccount(accountNumber = ACCOUNT_NUMBER, accountHolderName = "Ada Eze", bankCode = BANK_CODE)
         )
         given(paystackClient.createTransferRecipient(eq(BANK_ACCOUNT))).willReturn(RECIPIENT_CODE)
     }
@@ -71,7 +71,7 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
             status { isOk() }
             // Two people are attending, so each owes half.
             jsonPath("$.costPerPersonKobo") { value(500_000) }
-            jsonPath("$.accountNumberLast4") { value(ACCOUNT_NUMBER.takeLast(4)) }
+            jsonPath("$.payoutAccount.accountNumberLast4") { value(ACCOUNT_NUMBER.takeLast(4)) }
         }
 
         // Held in a local: a property from another module cannot be smart cast.
