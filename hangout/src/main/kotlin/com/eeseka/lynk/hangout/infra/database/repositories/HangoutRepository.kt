@@ -79,6 +79,9 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
     @Query("SELECT h.status FROM HangoutEntity h WHERE h.id = :hangoutId")
     fun findStatusById(hangoutId: HangoutId): HangoutStatus?
 
+    @Query("SELECT h.scheduledAt FROM HangoutEntity h WHERE h.id = :hangoutId")
+    fun findScheduledAtById(hangoutId: HangoutId): Instant?
+
     @Query("SELECT h.hostId FROM HangoutEntity h WHERE h.id = :hangoutId")
     fun findHostIdById(hangoutId: HangoutId): UserId?
 

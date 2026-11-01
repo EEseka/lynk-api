@@ -408,6 +408,17 @@ class HangoutService(
     fun isVotingOpen(hangoutId: HangoutId): Boolean =
         hangoutRepository.findStatusById(hangoutId) == HangoutStatus.VOTING
 
+    // Live locations open with "I'm here": from the hour before a hangout until it ends.
+    fun isLiveLocationOpen(hangoutId: HangoutId): Boolean =
+        when (hangoutRepository.findStatusById(hangoutId)) {
+            HangoutStatus.ONGOING -> true
+            HangoutStatus.SCHEDULED -> hangoutRepository.findScheduledAtById(hangoutId)
+                ?.minus(Duration.ofMinutes(STARTING_SOON_MINUTES))
+                ?.isBefore(Instant.now()) == true
+
+            else -> false
+        }
+
     fun isHost(hangoutId: HangoutId, userId: UserId): Boolean =
         hangoutRepository.findHostIdById(hangoutId) == userId
 

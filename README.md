@@ -19,7 +19,7 @@ client for Android and iOS.
 | **Hangouts**      | Create, edit, cancel, look a friend up by username and invite them, RSVP, attendee limits where a pending invite already holds the slot |
 | **Spots**         | Search, trending and a Top 10 from Google Places, sorted into hangout categories, Redis-cached, saved spots                            |
 | **Lynk AI**       | Claude Sonnet as a spot helper over Server-Sent Events, searching real places with tools, for Discover and for a hangout until it ends |
-| **Live lobby**    | Raw WebSockets: presence, spot proposals, live vote tallies, host tie-break                                                             |
+| **Live lobby**    | Raw WebSockets: presence, spot proposals, live vote tallies, host tie-break, opt-in live locations held in memory                       |
 | **Payments**      | Paystack bill-splitting: per-share charges, deadlines, host payouts, automatic refunds                                                  |
 | **Albums**        | A private photo album per finished hangout, uploaded straight to Supabase Storage through signed links                                  |
 | **Notifications** | Firebase push, an in-app inbox, and transactional email through Brevo                                                                   |

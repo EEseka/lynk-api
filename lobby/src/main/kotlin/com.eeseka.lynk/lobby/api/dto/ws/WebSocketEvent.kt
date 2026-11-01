@@ -4,6 +4,8 @@ enum class IncomingWebSocketMessageType {
     ENTER_LOBBY,
     LEAVE_LOBBY,
     LOCATION_SHARE,
+    LIVE_LOCATION_SHARE,
+    LIVE_LOCATION_STOP,
     PROPOSE_SPOT,
     REMOVE_SPOT,
     CAST_VOTE,
@@ -33,6 +35,9 @@ enum class OutgoingWebSocketMessageType {
     VOTE_TALLY,
     CENTER_UPDATE,
     VOTING_TIE,
+    LIVE_LOCATION_UPDATE,
+    LIVE_LOCATION_STOPPED,
+    LIVE_LOCATION_SNAPSHOT,
     ERROR
 }
 
