@@ -5,8 +5,11 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_ATTENDEES
+import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_GROUP
+import com.eeseka.lynk.hangout.domain.HangoutConstants.STARTING_SOON_MINUTES
 import com.eeseka.lynk.hangout.domain.event.HangoutInviteWithdrawnEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutNonPayerRemovedEvent
+import com.eeseka.lynk.hangout.domain.event.HangoutParticipantArrivedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutParticipantInvitedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutParticipantLeftEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPaymentReceivedEvent
@@ -32,6 +35,8 @@ import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
+import java.time.Instant
 
 @Service
 class HangoutParticipantService(
@@ -391,7 +396,10 @@ class HangoutParticipantService(
         )
 
         hangoutParticipantRepository.save(
-            participant.apply { rsvpStatus = RsvpStatus.DECLINED }
+            participant.apply {
+                rsvpStatus = RsvpStatus.DECLINED
+                arrivedAt = null
+            }
         )
 
         // The person who just walked may have been the last one who still owed money. Nobody is going
@@ -415,6 +423,59 @@ class HangoutParticipantService(
                 userId = userId,
                 displayName = leaverDisplayName
             )
+        )
+    }
+
+    @Transactional
+    fun markArrived(
+        userId: UserId,
+        hangoutId: HangoutId
+    ) {
+        hangoutRepository.lockById(hangoutId)
+
+        val hangout = hangoutRepository.findHangoutById(hangoutId, userId)
+            ?: throw HangoutNotFoundException(hangoutId.toString())
+
+        val participant = hangout.participants.find { it.hangoutUser.userId == userId }
+            ?: throw HangoutParticipantNotFoundException(userId.toString())
+
+        if (participant.rsvpStatus != RsvpStatus.ATTENDING) {
+            throw HangoutIllegalStateException("You are not attending this hangout.")
+        }
+
+        if (participant.arrivedAt != null) return
+
+        val now = Instant.now()
+        val isUnderWay = hangout.status == HangoutStatus.ONGOING
+        val isStartingSoon = hangout.status == HangoutStatus.SCHEDULED &&
+                now.isAfter(hangout.scheduledAt.minus(Duration.ofMinutes(STARTING_SOON_MINUTES)))
+        if (!isUnderWay && !isStartingSoon) {
+            throw HangoutIllegalStateException("You can only say you're here from $STARTING_SOON_MINUTES minutes before a hangout until it ends.")
+        }
+        if (hangout.participantCount < MIN_ATTENDEES_FOR_GROUP) {
+            throw HangoutIllegalStateException("Nobody else is going to this hangout.")
+        }
+
+        hangoutParticipantRepository.save(
+            participant.apply { arrivedAt = now }
+        )
+
+        val displayName = participant.hangoutUser.displayName
+        eventPublisher.publish(
+            HangoutEvent.ParticipantArrived(
+                hangoutId = hangoutId,
+                hangoutName = hangout.name,
+                // Whoever is already there has no need to head over
+                recipientIds = hangout.participants
+                    .filter { it.rsvpStatus == RsvpStatus.ATTENDING && it.arrivedAt == null }
+                    .map { it.hangoutUser.userId }
+                    .toSet(),
+                arrivedDisplayName = displayName
+            )
+        )
+
+        applicationEventPublisher.publishEvent(
+            HangoutParticipantArrivedEvent(hangoutId = hangoutId)
         )
     }
 

@@ -202,6 +202,29 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         sentKinds: List<HangoutReminderKind>
     ): List<HangoutEntity>
 
+    // Starts soon sweep: "hangouts with people going, starting soon, not yet reminded"
+    @Query("""
+        SELECT h
+        FROM HangoutEntity h
+        WHERE h.status = :status
+        AND h.scheduledAt > :from
+        AND h.scheduledAt < :to
+        AND h.participantCount >= :minParticipantCount
+        AND NOT EXISTS (
+            SELECT 1
+            FROM HangoutReminderEntity r
+            WHERE r.hangoutId = h.id
+            AND r.kind IN :sentKinds
+        )
+    """)
+    fun findByStatusAndScheduledAtBetweenAndParticipantCountAtLeastAndNoReminderIn(
+        status: HangoutStatus,
+        from: Instant,
+        to: Instant,
+        minParticipantCount: Int,
+        sentKinds: List<HangoutReminderKind>
+    ): List<HangoutEntity>
+
     // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
     @Query("""
         SELECT h FROM HangoutEntity h

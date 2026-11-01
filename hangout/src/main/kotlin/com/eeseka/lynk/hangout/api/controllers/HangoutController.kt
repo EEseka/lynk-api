@@ -201,4 +201,15 @@ class HangoutController(
             hangoutId = hangoutId
         )
     }
+
+    @PostMapping("/{hangoutId}/arrival")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun markArrived(
+        @PathVariable hangoutId: HangoutId
+    ) {
+        hangoutParticipantService.markArrived(
+            userId = requestUserId,
+            hangoutId = hangoutId
+        )
+    }
 }

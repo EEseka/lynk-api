@@ -98,6 +98,21 @@ sealed class HangoutEvent(
         override val eventKey: String = HangoutEventConstants.HANGOUT_PAYMENT_DEADLINE_CHANGED_KEY
     ) : HangoutEvent(), LynkEvent
 
+    data class HangoutStartingSoon(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_STARTING_SOON_KEY
+    ) : HangoutEvent(), LynkEvent
+
+    data class ParticipantArrived(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        val arrivedDisplayName: String,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PARTICIPANT_ARRIVED_KEY
+    ) : HangoutEvent(), LynkEvent
+
     data class HangoutStarted(
         val hangoutId: HangoutId,
         val hangoutName: String,

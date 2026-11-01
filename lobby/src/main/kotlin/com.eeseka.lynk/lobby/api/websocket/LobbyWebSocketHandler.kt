@@ -438,6 +438,19 @@ class LobbyWebSocketHandler(
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onParticipantArrived(event: HangoutParticipantArrivedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PARTICIPANT_ARRIVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyHangoutDto(hangoutId = event.hangoutId)
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onHangoutStarted(event: HangoutStartedEvent) {
         broadcastToHangout(
             hangoutId = event.hangoutId,
