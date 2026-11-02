@@ -827,6 +827,7 @@ class LobbyWebSocketHandler(
             return
         }
         if (!hangoutService.isVotingOpen(hangoutId)) return
+        if (!isValidCoordinate(latitude, longitude)) return
 
         lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
 
@@ -851,6 +852,7 @@ class LobbyWebSocketHandler(
             return
         }
         if (!hangoutService.isLiveLocationOpen(hangoutId)) return
+        if (!isValidCoordinate(latitude, longitude)) return
 
         val liveLocation = lobbyLiveLocationService.share(hangoutId, userSession.userId, latitude, longitude)
 
@@ -893,6 +895,9 @@ class LobbyWebSocketHandler(
 
     private fun attendsHangout(userId: UserId, hangoutId: HangoutId): Boolean =
         connectionLock.read { userHangoutIds[userId]?.contains(hangoutId) == true }
+
+    private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean =
+        latitude in -90.0..90.0 && longitude in -180.0..180.0
 
     // Client opened a lobby screen. Mark this socket as viewing that hangout and announce the refreshed presence list.
     private fun handleEnterLobby(userSession: UserSession, hangoutId: HangoutId) {
