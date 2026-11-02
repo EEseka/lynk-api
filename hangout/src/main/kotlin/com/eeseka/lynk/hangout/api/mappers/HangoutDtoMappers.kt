@@ -37,7 +37,8 @@ fun HangoutParticipant.toHangoutParticipantDto(): HangoutParticipantDto {
     return HangoutParticipantDto(
         user = user.toHangoutUserDto(),
         rsvpStatus = rsvpStatus,
-        hasPaid = hasPaid
+        hasPaid = hasPaid,
+        arrivedAt = arrivedAt
     )
 }
 

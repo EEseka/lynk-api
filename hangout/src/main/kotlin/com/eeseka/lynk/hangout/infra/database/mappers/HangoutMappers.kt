@@ -48,7 +48,8 @@ fun HangoutParticipantEntity.toHangoutParticipant(): HangoutParticipant {
     return HangoutParticipant(
         user = hangoutUser.toHangoutUser(),
         rsvpStatus = rsvpStatus,
-        hasPaid = hasPaid
+        hasPaid = hasPaid,
+        arrivedAt = arrivedAt
     )
 }
 

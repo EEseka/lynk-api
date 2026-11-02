@@ -52,6 +52,9 @@ class HangoutParticipantEntity(
     @Column(nullable = false)
     var hasPaid: Boolean = false,
 
+    @Column
+    var arrivedAt: Instant? = null,
+
     @CreationTimestamp
     var createdAt: Instant = Instant.now()
 )

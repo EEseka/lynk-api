@@ -12,9 +12,11 @@ import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessage
 import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessageType
 import com.eeseka.lynk.lobby.api.dto.ws.inbound.*
 import com.eeseka.lynk.lobby.api.dto.ws.outbound.*
+import com.eeseka.lynk.lobby.api.mappers.toLiveLocationDto
 import com.eeseka.lynk.lobby.api.mappers.toVotingSnapshotDto
 import com.eeseka.lynk.lobby.api.websocket.LobbyHandshakeInterceptor.Companion.USER_ID_ATTRIBUTE
 import com.eeseka.lynk.lobby.domain.model.ProposeOutcome
+import com.eeseka.lynk.lobby.service.LobbyLiveLocationService
 import com.eeseka.lynk.lobby.service.LobbyVotingService
 import com.eeseka.lynk.spot.api.mappers.toSpotDto
 import com.eeseka.lynk.spot.service.SpotService
@@ -28,6 +30,8 @@ import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorato
 import org.springframework.web.socket.handler.TextWebSocketHandler
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.ObjectMapper
+import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
@@ -39,12 +43,15 @@ class LobbyWebSocketHandler(
     private val spotService: SpotService,
     private val hangoutService: HangoutService,
     private val lobbyVotingService: LobbyVotingService,
+    private val lobbyLiveLocationService: LobbyLiveLocationService,
     private val objectMapper: ObjectMapper
 ) : TextWebSocketHandler() {
 
     companion object {
         private const val PING_INTERVAL_MS = 30_000L
         private const val PONG_TIMEOUT_MS = 60_000L
+        private const val LIVE_LOCATION_SWEEP_INTERVAL_MS = 60_000L
+        private val LIVE_LOCATION_TIMEOUT = Duration.ofMinutes(15)
         private const val SEND_TIME_LIMIT_MS = 10_000
         private const val SEND_BUFFER_LIMIT_BYTES = 512 * 1024
     }
@@ -101,6 +108,8 @@ class LobbyWebSocketHandler(
     override fun afterConnectionClosed(session: WebSocketSession, status: CloseStatus) {
         // If this socket was viewing a lobby, its dot must go out.
         var viewingHangout: HangoutId? = null
+        var closedUserId: UserId? = null
+        var hangoutsLeft: Set<HangoutId> = emptySet()
 
         connectionLock.write {
             sessions.remove(session.id)?.let { userSession ->
@@ -130,7 +139,8 @@ class LobbyWebSocketHandler(
                 }
 
                 if (remainingSessions == null) {
-                    userHangoutIds.remove(userId)
+                    closedUserId = userId
+                    hangoutsLeft = userHangoutIds.remove(userId)?.toSet() ?: emptySet()
                 }
 
                 logger.info("Websocket connection closed for user $userId")
@@ -139,6 +149,13 @@ class LobbyWebSocketHandler(
 
         // Their dot goes out for whichever lobby they were viewing.
         viewingHangout?.let { broadcastPresence(it) }
+
+        // They left the app. A dropped connection stays on the map: they may have just lost signal.
+        if (status.code == CloseStatus.NORMAL.code) {
+            closedUserId?.let { userId ->
+                hangoutsLeft.forEach { hangoutId -> stopLiveLocation(hangoutId, userId) }
+            }
+        }
     }
 
     override fun handleTransportError(session: WebSocketSession, exception: Throwable) {
@@ -202,6 +219,22 @@ class LobbyWebSocketHandler(
                         LocationShareDto::class.java
                     )
                     handleLocationShare(userSession, dto.hangoutId, dto.latitude, dto.longitude)
+                }
+
+                IncomingWebSocketMessageType.LIVE_LOCATION_SHARE -> {
+                    val dto = objectMapper.readValue(
+                        incomingMessage.payload,
+                        LiveLocationShareDto::class.java
+                    )
+                    handleLiveLocationShare(userSession, dto.hangoutId, dto.latitude, dto.longitude)
+                }
+
+                IncomingWebSocketMessageType.LIVE_LOCATION_STOP -> {
+                    val dto = objectMapper.readValue(
+                        incomingMessage.payload,
+                        LiveLocationStopDto::class.java
+                    )
+                    stopLiveLocation(dto.hangoutId, userSession.userId)
                 }
 
                 IncomingWebSocketMessageType.CLOSE_VOTING -> {
@@ -273,6 +306,16 @@ class LobbyWebSocketHandler(
                 }
             }
         }
+    }
+
+    // A phone that died or lost signal never says it stopped sharing, so its last position can't stay up.
+    @Scheduled(fixedDelay = LIVE_LOCATION_SWEEP_INTERVAL_MS)
+    fun removeSilentLiveLocations() {
+        lobbyLiveLocationService
+            .removeSharedBefore(Instant.now().minus(LIVE_LOCATION_TIMEOUT))
+            .forEach { (hangoutId, userIds) ->
+                userIds.forEach { userId -> broadcastLiveLocationStopped(hangoutId, userId) }
+            }
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -435,6 +478,26 @@ class LobbyWebSocketHandler(
                 )
             )
         )
+        // Moved to a later date: nobody is on their way anymore, so everyone stops being shown.
+        if (!hangoutService.isLiveLocationOpen(event.hangoutId) && lobbyLiveLocationService.clear(event.hangoutId)) {
+            broadcastToViewers(
+                hangoutId = event.hangoutId,
+                message = liveLocationSnapshotMessage(event.hangoutId)
+            )
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onParticipantArrived(event: HangoutParticipantArrivedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PARTICIPANT_ARRIVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyHangoutDto(hangoutId = event.hangoutId)
+                )
+            )
+        )
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -465,6 +528,7 @@ class LobbyWebSocketHandler(
             )
         )
         lobbyVotingService.clearVotingState(event.hangoutId)
+        lobbyLiveLocationService.clear(event.hangoutId)
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -482,6 +546,7 @@ class LobbyWebSocketHandler(
             )
         )
         lobbyVotingService.clearVotingState(event.hangoutId)
+        lobbyLiveLocationService.clear(event.hangoutId)
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -562,6 +627,8 @@ class LobbyWebSocketHandler(
         }
 
         if (wasViewing) broadcastPresence(hangoutId)
+
+        stopLiveLocation(hangoutId, userId)
 
         // The tally just shrank and the center just moved: everyone still here needs the new numbers.
         votesSnapshot?.let { votes ->
@@ -759,10 +826,8 @@ class LobbyWebSocketHandler(
             sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
             return
         }
-        if (!hangoutService.isVotingOpen(hangoutId)) {
-            sendError(userSession.session, ErrorDto("VOTING_CLOSED", "Voting is not open for this hangout"))
-            return
-        }
+        if (!hangoutService.isVotingOpen(hangoutId)) return
+        if (!isValidCoordinate(latitude, longitude)) return
 
         lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
 
@@ -776,8 +841,63 @@ class LobbyWebSocketHandler(
         )
     }
 
+    private fun handleLiveLocationShare(
+        userSession: UserSession,
+        hangoutId: HangoutId,
+        latitude: Double,
+        longitude: Double
+    ) {
+        if (!attendsHangout(userSession.userId, hangoutId)) {
+            sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
+            return
+        }
+        if (!hangoutService.isLiveLocationOpen(hangoutId)) return
+        if (!isValidCoordinate(latitude, longitude)) return
+
+        val liveLocation = lobbyLiveLocationService.share(hangoutId, userSession.userId, latitude, longitude)
+
+        broadcastToViewers(
+            hangoutId = hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.LIVE_LOCATION_UPDATE,
+                payload = objectMapper.writeValueAsString(liveLocation.toLiveLocationDto(hangoutId))
+            )
+        )
+    }
+
+    private fun stopLiveLocation(hangoutId: HangoutId, userId: UserId) {
+        if (lobbyLiveLocationService.stop(hangoutId, userId)) {
+            broadcastLiveLocationStopped(hangoutId, userId)
+        }
+    }
+
+    private fun broadcastLiveLocationStopped(hangoutId: HangoutId, userId: UserId) {
+        broadcastToViewers(
+            hangoutId = hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.LIVE_LOCATION_STOPPED,
+                payload = objectMapper.writeValueAsString(
+                    LiveLocationStoppedDto(hangoutId = hangoutId, userId = userId)
+                )
+            )
+        )
+    }
+
+    private fun liveLocationSnapshotMessage(hangoutId: HangoutId) = OutgoingWebSocketMessage(
+        type = OutgoingWebSocketMessageType.LIVE_LOCATION_SNAPSHOT,
+        payload = objectMapper.writeValueAsString(
+            LiveLocationSnapshotDto(
+                hangoutId = hangoutId,
+                locations = lobbyLiveLocationService.getLiveLocations(hangoutId).map { it.toLiveLocationDto(hangoutId) }
+            )
+        )
+    )
+
     private fun attendsHangout(userId: UserId, hangoutId: HangoutId): Boolean =
         connectionLock.read { userHangoutIds[userId]?.contains(hangoutId) == true }
+
+    private fun isValidCoordinate(latitude: Double, longitude: Double): Boolean =
+        latitude in -90.0..90.0 && longitude in -180.0..180.0
 
     // Client opened a lobby screen. Mark this socket as viewing that hangout and announce the refreshed presence list.
     private fun handleEnterLobby(userSession: UserSession, hangoutId: HangoutId) {
@@ -815,8 +935,12 @@ class LobbyWebSocketHandler(
         previous?.let { if (it != hangoutId) broadcastPresence(it) }
         broadcastPresence(hangoutId)
 
-        // Catch this joiner up on any voting already in progress.
+        // Catch this joiner up on any voting already in progress, and on who is sharing where.
         sendVotingSnapshot(userSession, hangoutId)
+        sendJson(
+            userSession = userSession,
+            messageJson = objectMapper.writeValueAsString(liveLocationSnapshotMessage(hangoutId))
+        )
     }
 
     // Send the whole ballot to a single joiner so they see exactly what everyone already in the lobby sees.
@@ -882,6 +1006,21 @@ class LobbyWebSocketHandler(
     private fun broadcastToHangout(hangoutId: HangoutId, message: OutgoingWebSocketMessage) {
         val sessionIds = connectionLock.read {
             hangoutToSessions[hangoutId]?.toList() ?: emptyList()
+        }
+        if (sessionIds.isEmpty()) return
+
+        val messageJson = objectMapper.writeValueAsString(message)
+
+        sessionIds.forEach { sessionId ->
+            val userSession = connectionLock.read { sessions[sessionId] } ?: return@forEach
+            sendJson(userSession, messageJson)
+        }
+    }
+
+    // Only the sockets with this lobby open, rather than everyone in the hangout.
+    private fun broadcastToViewers(hangoutId: HangoutId, message: OutgoingWebSocketMessage) {
+        val sessionIds = connectionLock.read {
+            hangoutViewers[hangoutId]?.toList() ?: emptyList()
         }
         if (sessionIds.isEmpty()) return
 

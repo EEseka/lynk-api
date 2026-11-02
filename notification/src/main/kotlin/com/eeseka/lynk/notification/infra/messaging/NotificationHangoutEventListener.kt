@@ -48,6 +48,8 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PaymentDeadlineResolved -> onPaymentDeadlineResolved(event)
                 is HangoutEvent.PayoutOutcome -> onPayoutOutcome(event)
                 is HangoutEvent.PaymentDeadlineChanged -> onPaymentDeadlineChanged(event)
+                is HangoutEvent.HangoutStartingSoon -> onHangoutStartingSoon(event)
+                is HangoutEvent.ParticipantArrived -> onParticipantArrived(event)
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
                 is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
                 is HangoutEvent.HangoutSpotReminder -> onHangoutSpotReminder(event)
@@ -248,6 +250,27 @@ class NotificationHangoutEventListener(
         )
     }
 
+    private fun onHangoutStartingSoon(event: HangoutEvent.HangoutStartingSoon) {
+        notify(
+            recipientIds = event.recipientIds,
+            type = NotificationType.HANGOUT_STARTING_SOON,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            message = "It starts in about an hour. Tap I'm Here when you arrive"
+        )
+    }
+
+    private fun onParticipantArrived(event: HangoutEvent.ParticipantArrived) {
+        notify(
+            recipientIds = event.recipientIds,
+            type = NotificationType.PARTICIPANT_ARRIVED,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            actorDisplayName = event.arrivedDisplayName,
+            message = "${event.arrivedDisplayName} is here. Start heading over"
+        )
+    }
+
     private fun onHangoutStarted(event: HangoutEvent.HangoutStarted) {
         notify(
             recipientIds = event.recipientIds,
@@ -257,7 +280,7 @@ class NotificationHangoutEventListener(
             message = if (event.isSolo) {
                 "It's starting now. Invite whoever is with you so you can share photos after"
             } else {
-                "Kicking off now, come see who's there"
+                "It's starting now. Have a good one"
             }
         )
     }

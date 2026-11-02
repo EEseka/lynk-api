@@ -6,6 +6,7 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.common.infra.message_queue.EventPublisher
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_GROUP
+import com.eeseka.lynk.hangout.domain.HangoutConstants.STARTING_SOON_MINUTES
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_ATTENDEES_FOR_PAYMENTS
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MIN_COST_PER_PERSON_KOBO
 import com.eeseka.lynk.hangout.domain.event.HangoutCancelledEvent
@@ -48,8 +49,16 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+
+private val PAYOUT_ACCOUNT_CHANGEABLE_STATES = setOf(
+    PaymentState.COLLECTING,
+    PaymentState.AWAITING_HOST_DECISION,
+    PaymentState.READY_FOR_PAYOUT,
+    PaymentState.PAYOUT_FAILED
+)
 
 @Service
 class HangoutService(
@@ -176,6 +185,8 @@ class HangoutService(
         // Nothing moved, so there is nothing to save and nobody to tell.
         if (changes.isEmpty()) return Pair(hangoutEntity.toHangout(), fetchSpotSafely(spotId, hostId))
 
+        val isPlaceOrTimeChanged = hangoutEntity.scheduledAt != scheduledAt || hangoutEntity.chosenSpotId != spotId
+
         val savedHangout = hangoutRepository.save(
             hangoutEntity.apply {
                 this.name = cleanName
@@ -185,6 +196,8 @@ class HangoutService(
                 this.scheduledAt = scheduledAt
                 this.maxAttendees = maxAttendees
                 this.chosenSpotId = spotId
+                // They arrived for the old plan
+                if (isPlaceOrTimeChanged) participants.forEach { it.arrivedAt = null }
             }
         ).toHangout()
         if (HangoutChangeKind.SCHEDULE_CHANGED in changes) {
@@ -193,7 +206,8 @@ class HangoutService(
                 kinds = listOf(
                     HangoutReminderKind.SPOT_BEFORE_START,
                     HangoutReminderKind.SPOT_AFTER_START,
-                    HangoutReminderKind.SOLO_BEFORE_START
+                    HangoutReminderKind.SOLO_BEFORE_START,
+                    HangoutReminderKind.STARTING_SOON
                 )
             )
         }
@@ -401,6 +415,17 @@ class HangoutService(
     fun isVotingOpen(hangoutId: HangoutId): Boolean =
         hangoutRepository.findStatusById(hangoutId) == HangoutStatus.VOTING
 
+    // Live locations open with "I'm here": from the hour before a hangout until it ends.
+    fun isLiveLocationOpen(hangoutId: HangoutId): Boolean =
+        when (hangoutRepository.findStatusById(hangoutId)) {
+            HangoutStatus.ONGOING -> true
+            HangoutStatus.SCHEDULED -> hangoutRepository.findScheduledAtById(hangoutId)
+                ?.minus(Duration.ofMinutes(STARTING_SOON_MINUTES))
+                ?.isBefore(Instant.now()) == true
+
+            else -> false
+        }
+
     fun isHost(hangoutId: HangoutId, userId: UserId): Boolean =
         hangoutRepository.findHostIdById(hangoutId) == userId
 
@@ -468,6 +493,9 @@ class HangoutService(
 
     @Transactional
     fun markPayoutInFlight(hangoutId: HangoutId) {
+        // Waits for a payout account change that is already saving, so the transfer goes to the new account.
+        hangoutRepository.lockById(hangoutId)
+
         val hangoutEntity = hangoutRepository.findByIdOrNull(hangoutId)
             ?: throw HangoutNotFoundException(hangoutId.toString())
         val payment = hangoutEntity.payment
@@ -542,6 +570,28 @@ class HangoutService(
         hangoutRepository.save(
             hangoutEntity.apply { payment.state = PaymentState.READY_FOR_PAYOUT }
         )
+    }
+
+    /**
+     * The same check under the row lock markPayoutInFlight also takes, so a change and a sweep can
+     * never overlap. Must run inside the caller's transaction, which holds the lock until it saves.
+     */
+    @Transactional
+    fun lockPayoutAccountForChange(hostId: UserId, hangoutId: HangoutId) {
+        hangoutRepository.lockById(hangoutId)
+        assertPayoutAccountCanChange(hostId = hostId, hangoutId = hangoutId)
+    }
+
+    fun assertPayoutAccountCanChange(hostId: UserId, hangoutId: HangoutId) {
+        val hangoutEntity = hangoutRepository.findHangoutById(hangoutId, hostId)
+            ?: throw HangoutNotFoundException(hangoutId.toString())
+
+        if (hangoutEntity.hostId != hostId) {
+            throw HangoutAccessDeniedException("Only the host can change where their payout goes.")
+        }
+        if (hangoutEntity.payment?.state !in PAYOUT_ACCOUNT_CHANGEABLE_STATES) {
+            throw HangoutIllegalStateException("This hangout's payout account can no longer be changed.")
+        }
     }
 
     /**
@@ -946,6 +996,42 @@ class HangoutService(
             )
         }
         logger.info("Reminded {} hosts that a hangout starts within a day with no spot", plannedAhead.size)
+    }
+
+    @Scheduled(fixedDelay = 5 * 60 * 1000)
+    @Transactional
+    fun remindAttendeesOfStartingHangouts() {
+        val now = Instant.now()
+        val startingSoonWindow = Duration.ofMinutes(STARTING_SOON_MINUTES)
+
+        val startingHangouts = hangoutRepository.findByStatusAndScheduledAtBetweenAndParticipantCountAtLeastAndNoReminderIn(
+            status = HangoutStatus.SCHEDULED,
+            from = now.plus(45, ChronoUnit.MINUTES),
+            to = now.plus(startingSoonWindow),
+            minParticipantCount = MIN_ATTENDEES_FOR_GROUP,
+            sentKinds = listOf(HangoutReminderKind.STARTING_SOON)
+        )
+        if (startingHangouts.isEmpty()) return
+
+        // Flushed before any push, so a sweep that loses the unique key sends nothing
+        hangoutReminderRepository.saveAllAndFlush(
+            startingHangouts.map { HangoutReminderEntity(hangoutId = it.id!!, kind = HangoutReminderKind.STARTING_SOON) }
+        )
+        // A hangout made inside the hour was only just planned, so nobody needs telling
+        val plannedAhead = startingHangouts.filter { it.createdAt.isBefore(it.scheduledAt.minus(startingSoonWindow)) }
+        plannedAhead.forEach { hangout ->
+            eventPublisher.publish(
+                HangoutEvent.HangoutStartingSoon(
+                    hangoutId = hangout.id!!,
+                    hangoutName = hangout.name,
+                    recipientIds = hangout.participants
+                        .filter { it.rsvpStatus == RsvpStatus.ATTENDING }
+                        .map { it.hangoutUser.userId }
+                        .toSet()
+                )
+            )
+        }
+        logger.info("Told attendees that {} hangouts start within the hour", plannedAhead.size)
     }
 
     @Scheduled(fixedDelay = 15 * 60 * 1000)

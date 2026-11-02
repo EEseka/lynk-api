@@ -40,7 +40,7 @@ fun PaystackBank.toBank(logoUrl: String?): Bank {
 fun PaystackAccount.toBankAccount(bankCode: String): BankAccount {
     return BankAccount(
         accountNumber = accountNumber,
-        accountName = accountName,
+        accountHolderName = accountName,
         bankCode = bankCode
     )
 }
