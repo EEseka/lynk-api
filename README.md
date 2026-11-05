@@ -17,7 +17,7 @@ client for Android and iOS.
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | **Auth**          | Google Sign-In and guest accounts, JWT with rotating refresh tokens, plus an API key on every request                                   |
 | **Hangouts**      | Create, edit, cancel, invite by username, RSVP, remove someone going and refund them, attendee caps where a pending invite holds a slot |
-| **On the day**    | Notes for everyone going from an hour before, with a choice of who is told, and I'm Here arrivals that tell whoever is still on the way |
+| **On the day**    | Notes for everyone going from an hour before, choosing who is notified, and I'm Here arrivals that tell whoever is still on the way     |
 | **Spots**         | Search, trending and a Top 10 from Google Places, sorted into hangout categories, Redis-cached, saved spots                            |
 | **Lynk AI**       | Claude Sonnet as a spot helper over Server-Sent Events, searching real places with tools, for Discover and for a hangout until it ends |
 | **Live lobby**    | Raw WebSockets: presence, spot proposals with who suggested them and why, vote tallies, host tie-break, live locations held in memory   |
