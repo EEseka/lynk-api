@@ -7,6 +7,7 @@ import com.eeseka.lynk.common.domain.exception.UnauthorizedException
 import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.dao.ConcurrencyFailureException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -43,6 +44,13 @@ class CommonExceptionHandler {
     fun onRateLimiterUnavailable(e: RateLimiterUnavailableException) = mapOf(
         "code" to "RATE_LIMITER_UNAVAILABLE",
         "message" to e.message
+    )
+
+    @ExceptionHandler(ConcurrencyFailureException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun onChangedConcurrently() = mapOf(
+        "code" to "CHANGED_CONCURRENTLY",
+        "message" to "This was changed somewhere else at the same time. Reload and try again."
     )
 
     @ExceptionHandler(MethodArgumentNotValidException::class)

@@ -1,6 +1,7 @@
 package com.eeseka.lynk.hangout.api.mappers
 
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
+import com.eeseka.lynk.hangout.api.dto.HangoutNoteDto
 import com.eeseka.lynk.hangout.api.dto.HangoutParticipantDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPaymentDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPhotoDto
@@ -11,6 +12,7 @@ import com.eeseka.lynk.hangout.api.dto.HangoutStatsDto
 import com.eeseka.lynk.hangout.api.dto.HangoutSummaryDto
 import com.eeseka.lynk.hangout.api.dto.HangoutUserDto
 import com.eeseka.lynk.hangout.domain.model.Hangout
+import com.eeseka.lynk.hangout.domain.model.HangoutNote
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
 import com.eeseka.lynk.hangout.domain.model.HangoutPayment
 import com.eeseka.lynk.hangout.domain.model.HangoutPhoto
@@ -117,6 +119,16 @@ fun HangoutPhoto.toHangoutPhotoDto(downloadUrls: HangoutPhotoDownloadUrls): Hang
         thumbnailUrl = downloadUrls.thumbnailUrl,
         urlsExpireAt = downloadUrls.expiresAt,
         createdAt = createdAt
+    )
+}
+
+fun HangoutNote.toHangoutNoteDto(): HangoutNoteDto {
+    return HangoutNoteDto(
+        id = id,
+        author = author.toHangoutUserDto(),
+        content = content,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 

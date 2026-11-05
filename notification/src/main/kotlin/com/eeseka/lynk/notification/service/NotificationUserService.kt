@@ -36,8 +36,9 @@ class NotificationUserService(
         )
     }
 
+    @Transactional
     fun deleteNotificationUser(userId: UserId) {
-        notificationUserRepository.deleteById(userId)
+        notificationUserRepository.deleteByUserId(userId)
     }
 
     fun findByUserIds(userIds: Set<UserId>): List<NotificationUserEntity> =

@@ -172,7 +172,7 @@ class HangoutController(
         @PathVariable hangoutId: HangoutId,
         @PathVariable userId: UserId
     ) {
-        hangoutParticipantService.withdrawParticipantInvite(
+        hangoutParticipantService.removeParticipant(
             hostId = requestUserId,
             hangoutId = hangoutId,
             targetUserId = userId

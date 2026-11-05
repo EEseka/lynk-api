@@ -1072,11 +1072,12 @@ class HangoutService(
         val abandoned = hangoutRepository.findSoloUnpaidHangoutsScheduledBefore(cutoff)
         if (abandoned.isEmpty()) return
 
-        hangoutRepository.deleteAll(abandoned)
+        val abandonedIds = abandoned.map { it.id!! }
+        hangoutRepository.deleteByIdIn(abandonedIds)
 
-        eventPublisher.publish(HangoutEvent.AbandonedHangoutsDeleted(hangoutIds = abandoned.map { it.id!! }))
+        eventPublisher.publish(HangoutEvent.AbandonedHangoutsDeleted(hangoutIds = abandonedIds))
 
-        logger.info("Deleted {} hangouts nobody ever joined", abandoned.size)
+        logger.info("Deleted {} solo hangouts nobody paid for, 30 days after their date", abandoned.size)
     }
 
     private fun assertPaymentsCanBeEnabled(

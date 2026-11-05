@@ -48,6 +48,8 @@ interface NotificationRepository : JpaRepository<NotificationEntity, Notificatio
     """)
     fun deleteByIsReadTrueAndCreatedAtBefore(cutoff: Instant)
 
+    @Modifying
+    @Query("DELETE FROM NotificationEntity n WHERE n.userId = :userId")
     fun deleteByUserId(userId: UserId)
 
     @Modifying

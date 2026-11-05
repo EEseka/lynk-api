@@ -66,6 +66,15 @@ class HangoutJourneyTest : IntegrationTest() {
             .andExpect { status { isBadRequest() } }
     }
 
+    /** A name sits on one line in every list and push; a description is free to run over several. */
+    @Test
+    fun `refuses a hangout name over several lines but not a description`() {
+        val host = signIn("ada")
+
+        postHangout(host, name = "Sunday\\njollof").andExpect { status { isBadRequest() } }
+        postHangout(host, description = "Rice\\n\\nand arguments").andExpect { status { isCreated() } }
+    }
+
     @Test
     fun `finds somebody to invite by their username`() {
         val host = signIn("ada")
@@ -402,14 +411,17 @@ class HangoutJourneyTest : IntegrationTest() {
         host: TestAccount,
         // Linux clocks tick in nanoseconds, but Postgres keeps microseconds, so a raw now() never round-trips
         scheduledAt: Instant = Instant.now().plus(Duration.ofDays(3)).truncatedTo(ChronoUnit.SECONDS),
-        maxAttendees: Int? = null
+        maxAttendees: Int? = null,
+        // Written as JSON, so "\\n" here arrives as a real line break
+        name: String = "Sunday jollof",
+        description: String = "Rice and arguments"
     ): ResultActionsDsl = mockMvc.post("/api/hangouts") {
         contentType = MediaType.APPLICATION_JSON
         authenticatedAs(host)
         content = """
             {
-              "name": "Sunday jollof",
-              "description": "Rice and arguments",
+              "name": "$name",
+              "description": "$description",
               "vibe": "FOOD",
               "scheduledAt": "$scheduledAt",
               "maxAttendees": $maxAttendees,

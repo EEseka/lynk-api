@@ -228,7 +228,7 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         sentKinds: List<HangoutReminderKind>
     ): List<HangoutEntity>
 
-    // Scheduled job: "Sweep hangouts nobody ever joined and nobody ever paid for, long after the date"
+    // Scheduled job: "Sweep hangouts only the host is going to, nobody paid for and with no photos, long after the date"
     @Query("""
         SELECT h FROM HangoutEntity h
         WHERE h.participantCount = 1
@@ -241,6 +241,11 @@ interface HangoutRepository : JpaRepository<HangoutEntity, HangoutId> {
         )
     """)
     fun findSoloUnpaidHangoutsScheduledBefore(cutoff: Instant): List<HangoutEntity>
+
+    // Participants, notes and reminders go with their hangout through the database's own cascade
+    @Modifying
+    @Query("DELETE FROM HangoutEntity h WHERE h.id IN :ids")
+    fun deleteByIdIn(ids: Collection<HangoutId>)
 
     @Query("""
         SELECT COUNT(h)

@@ -19,6 +19,8 @@ import com.eeseka.lynk.payment.api.mappers.toBankDto
 import com.eeseka.lynk.payment.api.mappers.toPaymentInitializationDto
 import com.eeseka.lynk.payment.api.mappers.toPaymentSettingsDto
 import com.eeseka.lynk.payment.api.mappers.toPayoutAccountDto
+import com.eeseka.lynk.payment.domain.PaymentConstants.ACCOUNT_NUMBER_PATTERN
+import com.eeseka.lynk.payment.domain.PaymentConstants.NUBAN_LENGTH
 import com.eeseka.lynk.payment.service.BankAccountService
 import com.eeseka.lynk.payment.service.PaymentDeadlineService
 import com.eeseka.lynk.payment.service.PaymentInitiationService
@@ -66,7 +68,7 @@ class PaymentController(
         whenRedisIsDown = WhenRedisIsDown.REFUSE
     )
     fun resolveBankAccount(
-        @RequestParam @Pattern(regexp = "\\d{10}", message = "An account number must be 10 digits")
+        @RequestParam @Pattern(regexp = ACCOUNT_NUMBER_PATTERN, message = "An account number must be $NUBAN_LENGTH digits")
         accountNumber: String,
         @RequestParam @NotBlank
         bankCode: String

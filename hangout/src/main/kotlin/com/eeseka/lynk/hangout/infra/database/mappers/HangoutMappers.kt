@@ -1,6 +1,7 @@
 package com.eeseka.lynk.hangout.infra.database.mappers
 
 import com.eeseka.lynk.hangout.domain.model.Hangout
+import com.eeseka.lynk.hangout.domain.model.HangoutNote
 import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
 import com.eeseka.lynk.hangout.domain.model.HangoutPayment
 import com.eeseka.lynk.hangout.domain.model.HangoutPhoto
@@ -9,6 +10,7 @@ import com.eeseka.lynk.hangout.domain.model.HangoutSummary
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutNoteEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutPaymentEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutPhotoEntity
@@ -41,6 +43,16 @@ fun HangoutPhotoEntity.toHangoutPhoto(): HangoutPhoto {
         status = status,
         caption = caption,
         createdAt = createdAt
+    )
+}
+
+fun HangoutNoteEntity.toHangoutNote(): HangoutNote {
+    return HangoutNote(
+        id = id!!,
+        author = author.toHangoutUser(),
+        content = content,
+        createdAt = createdAt,
+        updatedAt = updatedAt
     )
 }
 

@@ -96,10 +96,10 @@ class AuthService(
 
         val hashed = hashToken(refreshToken)
 
-        refreshTokenRepository.findByUserIdAndHashedToken(userId, hashed)
-            ?: throw InvalidTokenException("Invalid refresh token")
-
-        refreshTokenRepository.deleteByUserIdAndHashedToken(userId, hashed)
+        val deletedRows = refreshTokenRepository.deleteByUserIdAndHashedToken(userId, hashed)
+        if (deletedRows == 0) {
+            throw InvalidTokenException("Invalid refresh token")
+        }
 
         return generateAuthResponse(user)
     }
@@ -127,7 +127,11 @@ class AuthService(
         val profilePhotoUrl = userEntity.profilePhotoUrl
 
         refreshTokenRepository.deleteByUserId(userId)
-        userRepository.deleteById(userId)
+
+        val deletedRows = userRepository.deleteAccountById(userId)
+        if (deletedRows == 0) {
+            throw UserNotFoundException()
+        }
 
         requestProfilePhotoDeletion(userId, profilePhotoUrl)
 

@@ -5,8 +5,9 @@ import com.eeseka.lynk.common.domain.type.UserId
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_VOTING_CANDIDATES
 import com.eeseka.lynk.lobby.domain.model.Coordinates
 import com.eeseka.lynk.lobby.domain.model.ProposeOutcome
+import com.eeseka.lynk.lobby.domain.model.RemoveOutcome
+import com.eeseka.lynk.lobby.domain.model.VotingCandidate
 import com.eeseka.lynk.lobby.domain.model.VotingSnapshot
-import com.eeseka.lynk.spot.domain.model.Spot
 import org.springframework.stereotype.Service
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -19,32 +20,34 @@ class LobbyVotingService {
 
     private val votingLock = ReentrantReadWriteLock()
 
-    private val hangoutCandidates = ConcurrentHashMap<HangoutId, LinkedHashMap<String, Spot>>()
+    private val hangoutCandidates = ConcurrentHashMap<HangoutId, LinkedHashMap<String, VotingCandidate>>()
     private val hangoutVotes = ConcurrentHashMap<HangoutId, MutableMap<UserId, String>>()
     private val hangoutLocations = ConcurrentHashMap<HangoutId, MutableMap<UserId, Coordinates>>()
 
-    fun proposeSpot(hangoutId: HangoutId, spotId: String, spot: Spot): ProposeOutcome {
+    fun proposeSpot(hangoutId: HangoutId, candidate: VotingCandidate): ProposeOutcome {
         return votingLock.write {
             val candidates = hangoutCandidates.getOrPut(hangoutId) { LinkedHashMap() }
             when {
-                candidates.containsKey(spotId) -> ProposeOutcome.DUPLICATE
+                candidates.containsKey(candidate.spot.id) -> ProposeOutcome.DUPLICATE
                 candidates.size >= MAX_VOTING_CANDIDATES -> ProposeOutcome.FULL
                 else -> {
-                    candidates[spotId] = spot
+                    candidates[candidate.spot.id] = candidate
                     ProposeOutcome.ADDED
                 }
             }
         }
     }
 
-    // Purges any votes for the spot so a removed spot can never win at close time.
-    // Returns the votes left or null when the spot isn't on the ballot.
-    fun removeCandidate(hangoutId: HangoutId, spotId: String): Map<UserId, String>? {
+    fun removeCandidate(hangoutId: HangoutId, spotId: String, userId: UserId, isHost: Boolean): RemoveOutcome {
         return votingLock.write {
-            if (hangoutCandidates[hangoutId]?.remove(spotId) == null) return@write null
+            val candidates = hangoutCandidates[hangoutId]
+            val candidate = candidates?.get(spotId) ?: return@write RemoveOutcome.NotACandidate
+            if (!isHost && candidate.suggestedById != userId) return@write RemoveOutcome.NotAllowed
+
+            candidates.remove(spotId)
             val votes = hangoutVotes[hangoutId]
             votes?.values?.removeAll { it == spotId }
-            votes?.let { HashMap(it) } ?: emptyMap()
+            RemoveOutcome.Removed(votes = votes?.let { HashMap(it) } ?: emptyMap())
         }
     }
 

@@ -102,7 +102,7 @@ object AssistantPrompts {
             The user is browsing the map in Lynk's Discover tab. Searches run around the area they are looking at, and distanceKm is from there.
             You never know where the user themselves is. If they ask how far a place is from them, say distanceKm is from the area on the map, and that tapping the place shows how far it is from them.
             Their newest message starts with the time where they are, inside <now> tags. isOpenNow says whether a place is open right now.
-            Tapping a card opens the place, where they can save it. There is no hangout or ballot here, so never suggest voting.
+            Tapping a card opens the place, where they can save it or create a hangout there. There is no hangout or ballot here yet, so never suggest voting.
         """.trimIndent()
 
         val now = Instant.now().atZone(zoneId).format(dateTimeFormatter)

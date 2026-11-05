@@ -178,7 +178,7 @@ class HangoutPhotoService(
         }
 
         val cleanCaption = caption?.trim()?.takeIf { it.isNotEmpty() }
-        val updatedRows = hangoutPhotoRepository.updateCaptionById(photoId, cleanCaption)
+        val updatedRows = hangoutPhotoRepository.updateCaptionByIdAndHangoutId(photoId, hangoutId, cleanCaption)
         if (updatedRows == 0) {
             throw HangoutPhotoNotFoundException(photoId.toString())
         }

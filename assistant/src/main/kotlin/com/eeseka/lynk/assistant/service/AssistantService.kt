@@ -191,7 +191,7 @@ class AssistantService(
             hangout = hangout,
             chosenSpot = chosenSpot,
             isHost = hangout.hostId == userId,
-            ballot = votingSnapshot.candidates,
+            ballot = votingSnapshot.candidates.map { it.spot },
             hasGroupCenter = votingSnapshot.centerLatitude != null,
             hasStarted = hasStarted,
             zoneId = zoneId,
@@ -203,7 +203,7 @@ class AssistantService(
             searchLatitude = chosenSpot?.latitude ?: votingSnapshot.centerLatitude,
             searchLongitude = chosenSpot?.longitude ?: votingSnapshot.centerLongitude,
             hangoutTime = hangout.scheduledAt.takeUnless { hasStarted },
-            ballotSpotIds = votingSnapshot.candidates.map { it.id },
+            ballotSpotIds = votingSnapshot.candidates.map { it.spot.id },
             earlierRecommendedSpotIds = history.flatMap { message -> message.recommendations.map { it.spot.id } }.distinct()
         )
         chosenSpot?.let { turn.seenSpots[it.id] = it }

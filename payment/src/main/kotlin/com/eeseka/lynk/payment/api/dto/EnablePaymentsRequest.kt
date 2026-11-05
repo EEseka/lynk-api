@@ -1,5 +1,6 @@
 package com.eeseka.lynk.payment.api.dto
 
+import com.eeseka.lynk.payment.domain.PaymentConstants.ACCOUNT_NUMBER_PATTERN
 import com.eeseka.lynk.payment.domain.PaymentConstants.NUBAN_LENGTH
 import jakarta.validation.constraints.Future
 import jakarta.validation.constraints.Min
@@ -12,7 +13,7 @@ data class EnablePaymentsRequest(
     val totalCostKobo: Long,
     @field:Future(message = "Payment deadline must be in the future")
     val paymentDeadline: Instant,
-    @field:Pattern(regexp = "\\d{$NUBAN_LENGTH}", message = "An account number must be $NUBAN_LENGTH digits")
+    @field:Pattern(regexp = ACCOUNT_NUMBER_PATTERN, message = "An account number must be $NUBAN_LENGTH digits")
     val accountNumber: String,
     @field:NotBlank(message = "Bank cannot be blank")
     val bankCode: String

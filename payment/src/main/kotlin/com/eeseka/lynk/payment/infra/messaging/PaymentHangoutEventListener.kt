@@ -9,7 +9,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener
 import org.springframework.stereotype.Component
 
 @Component
-class HangoutRefundListener(
+class PaymentHangoutEventListener(
     private val refundService: RefundService,
     private val payoutService: PayoutService
 ) {
@@ -20,6 +20,7 @@ class HangoutRefundListener(
         when (event) {
             is HangoutEvent.HangoutCancelled -> onHangoutCancelled(event)
             is HangoutEvent.ParticipantLeft -> onParticipantLeft(event)
+            is HangoutEvent.ParticipantRemoved -> onParticipantRemoved(event)
             else -> Unit
         }
     }
@@ -35,6 +36,14 @@ class HangoutRefundListener(
         refundService.refundSettledPaymentForParticipant(
             hangoutId = event.hangoutId,
             userId = event.leaverId
+        )
+    }
+
+    private fun onParticipantRemoved(event: HangoutEvent.ParticipantRemoved) {
+        logger.info("Participant {} was removed from hangout {}, refunding their money", event.participantId, event.hangoutId)
+        refundService.refundSettledPaymentForParticipant(
+            hangoutId = event.hangoutId,
+            userId = event.participantId
         )
     }
 }

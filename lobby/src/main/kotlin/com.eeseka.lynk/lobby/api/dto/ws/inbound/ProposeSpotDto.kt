@@ -4,5 +4,6 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 
 data class ProposeSpotDto(
     val hangoutId: HangoutId,
-    val spotId: String
+    val spotId: String,
+    val note: String?
 )
