@@ -16,10 +16,11 @@ client for Android and iOS.
 | Feature           | What it does                                                                                                                            |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
 | **Auth**          | Google Sign-In and guest accounts, JWT with rotating refresh tokens, plus an API key on every request                                   |
-| **Hangouts**      | Create, edit, cancel, look a friend up by username and invite them, RSVP, attendee limits where a pending invite already holds the slot |
+| **Hangouts**      | Create, edit, cancel, invite by username, RSVP, remove someone going and refund them, attendee caps where a pending invite holds a slot |
+| **On the day**    | Notes for everyone going from an hour before, with a choice of who is told, and I'm Here arrivals that tell whoever is still on the way |
 | **Spots**         | Search, trending and a Top 10 from Google Places, sorted into hangout categories, Redis-cached, saved spots                            |
 | **Lynk AI**       | Claude Sonnet as a spot helper over Server-Sent Events, searching real places with tools, for Discover and for a hangout until it ends |
-| **Live lobby**    | Raw WebSockets: presence, spot proposals, live vote tallies, host tie-break, opt-in live locations held in memory                       |
+| **Live lobby**    | Raw WebSockets: presence, spot proposals with who suggested them and why, vote tallies, host tie-break, live locations held in memory   |
 | **Payments**      | Paystack bill-splitting: per-share charges, deadlines, host payouts, automatic refunds                                                  |
 | **Albums**        | A private photo album per finished hangout, uploaded straight to Supabase Storage through signed links                                  |
 | **Notifications** | Firebase push, an in-app inbox, and transactional email through Brevo                                                                   |
@@ -140,7 +141,7 @@ flowchart TB
         AI["<b>assistant</b><br/>Lynk AI"]
         LOBBY["<b>lobby</b><br/>live WebSocket, voting"]
         PAYMENT["<b>payment</b><br/>charges, payouts, refunds"]
-        HANGOUT["<b>hangout</b><br/>hangouts, invites, albums"]
+        HANGOUT["<b>hangout</b><br/>hangouts, invites, notes, albums"]
         SPOT["<b>spot</b><br/>Google Places, saved spots"]
         USER["<b>user</b><br/>auth, profiles, API keys"]
         NOTIF["<b>notification</b><br/>push, inbox, email"]
@@ -191,7 +192,7 @@ flowchart LR
 app            Spring Boot entry point, security, rate limiting, scheduling, Flyway migrations
 common         shared types, events, JWT, exception handling, RabbitMQ and storage plumbing
 user           auth, profiles, API keys, profile photos
-hangout        hangouts, participants, invites, RSVP, albums, the payment state machine
+hangout        hangouts, participants, invites, RSVP, notes, albums, the payment state machine
 spot           Google Places integration, trending and Top 10 cache, saved spots
 lobby          raw WebSocket lobby, presence, voting
 payment        Paystack charges, webhooks, payouts, refunds, reconciliation
@@ -203,9 +204,9 @@ assistant      Lynk AI: the Claude tool loop, chats, daily limits, SSE streaming
 
 Modules never read each other's tables. `hangout` learns a person exists because `user` published an event, and
 keeps its own copy of what it needs. Events cross modules over RabbitMQ: `user` announces sign-ups, profile changes
-and deletions; `hangout` announces invites, RSVPs, reminders, payments, photos and cancellations. Deleting an account
-also cleans up everywhere: saved spots, chats, album photos, the inbox and device tokens. The live lobby hears about
-changes inside the same process, once the database transaction has committed.
+and deletions; `hangout` announces invites, RSVPs, removals, notes, arrivals, reminders, payments, photos and
+cancellations. Deleting an account also cleans up everywhere: saved spots, chats, notes, album photos, the inbox and
+device tokens. The live lobby hears about changes inside the same process, once the database transaction has committed.
 
 ```mermaid
 %%{init: {"theme": "base", "themeVariables": {"fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif", "fontSize": "15px", "primaryColor": "#C4EFC9", "primaryTextColor": "#1F2937", "primaryBorderColor": "#3E9A5B", "lineColor": "#7C8798"}}}%%
@@ -225,7 +226,7 @@ flowchart LR
     L1("all of them")
     L2("profile changes")
     L3("user deleted")
-    L4("cancelled, left")
+    L4("cancelled, left, removed")
     L5("deletions, place details")
 
     NOTIF_C["<b>notification</b><br/>keeps its own copy of each person,<br/>sends push, inbox row, email"]
@@ -362,9 +363,9 @@ carries an optimistic `@Version`, and every change to who is in a hangout first 
 accepting the last free share can't both get in.
 
 **Lynk AI on real data.** The assistant is a tool loop over Claude: it searches Google Places through the `spot`
-module, reads opening hours and amenities, and shows places as cards the app can open, save, or put on the ballot. It
-can only recommend places its own tools returned, answers stream over Server-Sent Events, and each answer's token
-usage is stored.
+module, reads opening hours and amenities, and shows places as cards the app can open, save, put on the ballot, or
+turn into a new hangout. It can only recommend places its own tools returned, answers stream over Server-Sent Events,
+and each answer's token usage is stored.
 
 **Schema owned by migrations.** Flyway builds every environment from `V1__baseline.sql`; Hibernate runs `validate`
 everywhere and creates nothing, including in development.
@@ -380,10 +381,11 @@ RabbitMQ with an in-memory broker that hands each event to the real listeners.
 
 ```
 Unit                  money arithmetic, webhook signatures, opening hours, place types, Top 10 ranking
-REST journeys         auth, hangouts, participants, spots, profile, albums, notifications, payments
+REST journeys         auth, hangouts, participants, removals, notes, arrivals, spots, profile, albums, notifications, payments
+Live lobby            who may take a spot off the ballot, shared live locations and when they expire
 Scheduled sweeps      every one, invoked directly, since no endpoint can reach them
 Payment webhook       a signed Paystack callback driving the full state machine
-Concurrency           eight people racing for the last free share
+Concurrency           eight people racing for the last free share, and the same delete or logout sent several times at once
 Lynk AI               a scripted stand-in for Claude driving the whole tool loop and answer stream
 Email                 every template branch rendered
 ```
