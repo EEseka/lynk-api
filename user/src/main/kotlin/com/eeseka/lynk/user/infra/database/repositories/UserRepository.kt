@@ -12,6 +12,11 @@ interface UserRepository : JpaRepository<UserEntity, UserId> {
     fun findByEmail(email: String): UserEntity?
     fun existsByUsername(username: String): Boolean
     fun findByUsername(username: String): UserEntity?
+
+    @Modifying
+    @Query("DELETE FROM UserEntity u WHERE u.id = :id")
+    fun deleteAccountById(id: UserId): Int
+
     @Modifying
     @Query("DELETE FROM UserEntity u WHERE u.authProvider = :authProvider AND u.createdAt < :date")
     fun deleteByAuthProviderAndCreatedAtLessThan(authProvider: AuthProvider, date: Instant)

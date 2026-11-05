@@ -3,6 +3,7 @@ package com.eeseka.lynk.hangout.infra.messaging
 import com.eeseka.lynk.common.domain.events.user.UserEvent
 import com.eeseka.lynk.common.infra.message_queue.MessageQueues
 import com.eeseka.lynk.hangout.domain.model.HangoutUser
+import com.eeseka.lynk.hangout.service.HangoutNoteService
 import com.eeseka.lynk.hangout.service.HangoutPhotoService
 import com.eeseka.lynk.hangout.service.HangoutUserService
 import org.slf4j.LoggerFactory
@@ -12,7 +13,8 @@ import org.springframework.stereotype.Component
 @Component
 class HangoutUserEventListener(
     private val hangoutUserService: HangoutUserService,
-    private val hangoutPhotoService: HangoutPhotoService
+    private val hangoutPhotoService: HangoutPhotoService,
+    private val hangoutNoteService: HangoutNoteService
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -40,6 +42,7 @@ class HangoutUserEventListener(
             }
             is UserEvent.Deleted -> {
                 hangoutPhotoService.deleteAllPhotosOfUploader(event.userId)
+                hangoutNoteService.deleteAllNotesOfAuthor(event.userId)
                 hangoutUserService.anonymiseHangoutUser(event.userId)
             }
             else -> Unit

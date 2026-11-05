@@ -66,8 +66,8 @@ interface HangoutPhotoRepository : JpaRepository<HangoutPhotoEntity, HangoutPhot
     fun findByStatusAndAnnouncedAtIsNull(status: HangoutPhotoStatus): List<HangoutPhotoEntity>
 
     @Modifying
-    @Query("UPDATE HangoutPhotoEntity p SET p.caption = :caption WHERE p.id = :id")
-    fun updateCaptionById(id: HangoutPhotoId, caption: String?): Int
+    @Query("UPDATE HangoutPhotoEntity p SET p.caption = :caption WHERE p.id = :id AND p.hangoutId = :hangoutId")
+    fun updateCaptionByIdAndHangoutId(id: HangoutPhotoId, hangoutId: HangoutId, caption: String?): Int
 
     @Modifying
     @Query("UPDATE HangoutPhotoEntity p SET p.announcedAt = :announcedAt WHERE p.id IN :ids")

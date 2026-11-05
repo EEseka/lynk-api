@@ -4,6 +4,9 @@ import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutNoteEntity
+import com.eeseka.lynk.hangout.infra.database.repositories.HangoutNoteRepository
+import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRepository
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutRepository
 import com.eeseka.lynk.hangout.service.HangoutService
 import com.eeseka.lynk.support.IntegrationTest
@@ -30,6 +33,12 @@ class HangoutScheduledSweepTest : IntegrationTest() {
 
     @Autowired
     private lateinit var hangoutRepository: HangoutRepository
+
+    @Autowired
+    private lateinit var hangoutParticipantRepository: HangoutParticipantRepository
+
+    @Autowired
+    private lateinit var hangoutNoteRepository: HangoutNoteRepository
 
     @Test
     fun `readies a hangout for payout when everybody paid by the deadline`() {
@@ -169,6 +178,21 @@ class HangoutScheduledSweepTest : IntegrationTest() {
         hangoutService.cleanupSoloUnpaidHangouts()
 
         assertNull(hangoutRepository.findByIdOrNull(hangout.id!!))
+    }
+
+    @Test
+    fun `takes the participants and notes of a swept hangout with it`() {
+        val hangout = arrangeSoloHangout(scheduledAt = Instant.now().minus(Duration.ofDays(40)))
+        // A guest who went, left a note and then left the hangout
+        val guest = fixtures.user(displayName = "Bola")
+        fixtures.participant(hangout = hangout, user = guest, rsvpStatus = RsvpStatus.DECLINED)
+        hangoutNoteRepository.save(HangoutNoteEntity(hangoutId = hangout.id!!, author = guest, content = "Running late"))
+
+        hangoutService.cleanupSoloUnpaidHangouts()
+
+        assertNull(hangoutRepository.findByIdOrNull(hangout.id!!))
+        assertEquals(0, hangoutParticipantRepository.findAll().count { it.hangout.id == hangout.id })
+        assertEquals(0, hangoutNoteRepository.findAll().count { it.hangoutId == hangout.id })
     }
 
     @Test

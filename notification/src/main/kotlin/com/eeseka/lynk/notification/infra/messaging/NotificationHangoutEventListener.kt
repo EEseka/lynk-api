@@ -50,6 +50,7 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.PaymentDeadlineChanged -> onPaymentDeadlineChanged(event)
                 is HangoutEvent.HangoutStartingSoon -> onHangoutStartingSoon(event)
                 is HangoutEvent.ParticipantArrived -> onParticipantArrived(event)
+                is HangoutEvent.NoteAdded -> onNoteAdded(event)
                 is HangoutEvent.HangoutStarted -> onHangoutStarted(event)
                 is HangoutEvent.HangoutCompletionReminder -> onHangoutCompletionReminder(event)
                 is HangoutEvent.HangoutSpotReminder -> onHangoutSpotReminder(event)
@@ -268,6 +269,17 @@ class NotificationHangoutEventListener(
             hangoutName = event.hangoutName,
             actorDisplayName = event.arrivedDisplayName,
             message = "${event.arrivedDisplayName} is here. Start heading over"
+        )
+    }
+
+    private fun onNoteAdded(event: HangoutEvent.NoteAdded) {
+        notify(
+            recipientIds = event.recipientIds,
+            type = NotificationType.NOTE_ADDED,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            actorDisplayName = event.authorDisplayName,
+            message = "${event.authorDisplayName}: ${event.content}"
         )
     }
 

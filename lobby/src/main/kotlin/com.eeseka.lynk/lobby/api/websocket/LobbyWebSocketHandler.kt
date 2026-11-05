@@ -501,6 +501,19 @@ class LobbyWebSocketHandler(
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onNotesChanged(event: HangoutNotesChangedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.NOTES_CHANGED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyHangoutDto(hangoutId = event.hangoutId)
+                )
+            )
+        )
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onHangoutStarted(event: HangoutStartedEvent) {
         broadcastToHangout(
             hangoutId = event.hangoutId,

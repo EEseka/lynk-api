@@ -39,17 +39,16 @@
             mso-line-height-rule: exactly;
         }
 
-        /* The page and the card share one colour so the email sits flush against the
-           client's own background - pure white in light (surfaceContainerLowestLight,
-           rather than the app's slightly tinted backgroundLight, because inboxes render
-           on white), pure black in dark to match backgroundDark. Structure comes from
-           the rules and the footer band, never from a card edge. */
+        /* The page and the header, content and footer share one colour, the app's own
+           background (backgroundLight / backgroundDark, the same tokens the site uses), so
+           the email reads as one sheet. Structure comes from the cards, the rule above the
+           footer and the footer band, never from a frame around the email. */
         @media (prefers-color-scheme: dark) {
             .email-body, .email-container, .header-cell, .content-cell, .footer-band {
-                background-color: #000000 !important; /* backgroundDark */
+                background-color: #13121b !important; /* backgroundDark */
             }
 
-            .heading, .wordmark {
+            .heading, .wordmark, .wordmark-link {
                 color: #e4e1ee !important; /* onBackgroundDark */
             }
 
@@ -57,9 +56,13 @@
                 color: #e4e1ee !important; /* onBackgroundDark */
             }
 
+            .preheader {
+                color: #13121b !important; /* backgroundDark */
+            }
+
             .note {
-                background-color: #0f0f18 !important; /* surfaceContainerLowDark */
-                border-color: #1e1d27 !important; /* surfaceContainerHighDark */
+                background-color: #1b1b24 !important; /* surfaceContainerLowDark */
+                border-color: #2a2933 !important; /* surfaceContainerHighDark */
             }
 
             .note-text {
@@ -71,7 +74,7 @@
             }
 
             .footer-band {
-                border-top-color: #1e1d27 !important; /* surfaceContainerHighDark */
+                border-top-color: #2a2933 !important; /* surfaceContainerHighDark */
             }
 
             .footer-text {
@@ -103,12 +106,12 @@
     </style>
 </head>
 <body class="email-body"
-      style="margin: 0; padding: 0; width: 100%; background-color: #ffffff;
+      style="margin: 0; padding: 0; width: 100%; background-color: #fcf8ff;
              font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
 
 <div class="preheader"
      style="display: none; max-height: 0; overflow: hidden; mso-hide: all;
-            font-size: 1px; line-height: 1px; color: #ffffff; opacity: 0;"
+            font-size: 1px; line-height: 1px; color: #fcf8ff; opacity: 0;"
      th:text="${preheader}">Email from Lynk
 </div>
 
@@ -120,13 +123,13 @@
 </div>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       class="email-body" style="background-color: #ffffff;">
+       class="email-body" style="background-color: #fcf8ff;">
     <tr>
         <td align="center" style="padding: 0;">
 
             <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"
                    class="email-container"
-                   style="width: 100%; max-width: 600px; background-color: #ffffff;">
+                   style="width: 100%; max-width: 600px; background-color: #fcf8ff;">
 
                 <tr>
                     <td th:replace="~{emails/fragments/header :: header}"></td>
@@ -134,7 +137,7 @@
 
                 <tr>
                     <td class="content-cell"
-                        style="padding: 8px 32px 40px; background-color: #ffffff;">
+                        style="padding: 8px 32px 40px; background-color: #fcf8ff;">
                         <div th:replace="${content}">
                             <!-- Content goes here -->
                         </div>

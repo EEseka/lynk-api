@@ -113,6 +113,15 @@ sealed class HangoutEvent(
         override val eventKey: String = HangoutEventConstants.HANGOUT_PARTICIPANT_ARRIVED_KEY
     ) : HangoutEvent(), LynkEvent
 
+    data class NoteAdded(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val recipientIds: Set<UserId>,
+        val authorDisplayName: String,
+        val content: String,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_NOTE_ADDED_KEY
+    ) : HangoutEvent(), LynkEvent
+
     data class HangoutStarted(
         val hangoutId: HangoutId,
         val hangoutName: String,

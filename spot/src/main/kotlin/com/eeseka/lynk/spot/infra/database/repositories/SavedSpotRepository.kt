@@ -16,6 +16,8 @@ interface SavedSpotRepository : JpaRepository<SavedSpotEntity, Long> {
 
     fun existsByUserIdAndGooglePlaceId(userId: UserId, googlePlaceId: String): Boolean
 
+    @Modifying
+    @Query("DELETE FROM SavedSpotEntity s WHERE s.userId = :userId AND s.googlePlaceId = :googlePlaceId")
     fun deleteByUserIdAndGooglePlaceId(userId: UserId, googlePlaceId: String)
 
     @Modifying

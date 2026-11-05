@@ -2,6 +2,7 @@ package com.eeseka.lynk.hangout
 
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.hangout.api.dto.HangoutDto
+import com.eeseka.lynk.hangout.api.dto.HangoutNoteDto
 import com.eeseka.lynk.hangout.api.dto.HangoutPhotoUploadResponse
 import com.eeseka.lynk.hangout.domain.model.HangoutPhotoUploadCredentials
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
@@ -165,6 +166,43 @@ class HangoutConcurrencyTest : IntegrationTest() {
         assertTrue(statuses.all { it == 204 || it == 404 }, "a delete failed for the wrong reason: $statuses")
         // The files are removed once, by the delete that removed the row
         verify(supabaseHangoutStorageClient, times(1)).deleteFiles(any(), any())
+    }
+
+    @Test
+    fun `removes a note once when several deletes of it arrive together`() {
+        val host = accounts.signIn(email = "ada@lynk.test", displayName = "Ada", username = "ada")
+        val bola = accounts.signIn(email = "bola@lynk.test", displayName = "Bola", username = "bola")
+        val hangoutId = hangouts.scheduled(host).id
+        hangouts.invite(host, hangoutId, bola)
+        hangouts.accept(bola, hangoutId)
+        // Notes open an hour before the start
+        fixtures.moveScheduledAt(hangoutId, Instant.now().plus(Duration.ofMinutes(30)))
+
+        val response = mockMvc.post("/api/hangouts/$hangoutId/notes") {
+            contentType = MediaType.APPLICATION_JSON
+            authenticatedAs(bola)
+            content = """{"content":"Running late","audience":"EVERYONE"}"""
+        }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
+        val noteId = objectMapper.readValue(response, HangoutNoteDto::class.java).id
+
+        val barrier = CyclicBarrier(RACING_INVITEES)
+        val executor = Executors.newFixedThreadPool(RACING_INVITEES)
+        val results = try {
+            (1..RACING_INVITEES).map {
+                executor.submit<MvcResult> {
+                    barrier.await()
+                    mockMvc.delete("/api/hangouts/$hangoutId/notes/$noteId") {
+                        authenticatedAs(bola)
+                    }.andReturn()
+                }
+            }.map { it.get(30, TimeUnit.SECONDS) }
+        } finally {
+            executor.shutdownNow()
+        }
+
+        val statuses = results.map { it.response.status }
+        assertEquals(1, statuses.count { it == 204 }, "expected exactly one delete to remove the note: $statuses")
+        assertTrue(statuses.all { it == 204 || it == 404 }, "a delete failed for the wrong reason: $statuses")
     }
 
     /** Every request waits at the same barrier, so they all start together. */
