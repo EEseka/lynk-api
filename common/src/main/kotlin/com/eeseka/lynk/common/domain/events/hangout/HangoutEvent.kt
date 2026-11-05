@@ -36,6 +36,14 @@ sealed class HangoutEvent(
         override val eventKey: String = HangoutEventConstants.HANGOUT_REMOVED_FOR_NON_PAYMENT_KEY
     ) : HangoutEvent(), LynkEvent
 
+    data class ParticipantRemoved(
+        val hangoutId: HangoutId,
+        val hangoutName: String,
+        val participantId: UserId,
+        val hostDisplayName: String,
+        override val eventKey: String = HangoutEventConstants.HANGOUT_PARTICIPANT_REMOVED_KEY
+    ) : HangoutEvent(), LynkEvent
+
     data class ParticipantLeft(
         val hangoutId: HangoutId,
         val hangoutName: String,

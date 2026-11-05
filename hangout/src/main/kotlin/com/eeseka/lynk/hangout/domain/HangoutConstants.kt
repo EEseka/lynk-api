@@ -14,5 +14,6 @@ object HangoutConstants {
     const val MAX_CAPTION_LENGTH = 200
     const val MAX_NOTE_LENGTH = 140
     const val MAX_VOTING_CANDIDATES = 10
+    const val MAX_SPOT_NOTE_LENGTH = 140
     const val STARTING_SOON_MINUTES = 60L
 }

@@ -1,7 +1,9 @@
 package com.eeseka.lynk.lobby.api.websocket
 
+import com.eeseka.lynk.common.domain.ValidationPatterns
 import com.eeseka.lynk.common.domain.type.HangoutId
 import com.eeseka.lynk.common.domain.type.UserId
+import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_SPOT_NOTE_LENGTH
 import com.eeseka.lynk.hangout.domain.event.*
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
 import com.eeseka.lynk.hangout.service.HangoutParticipantService
@@ -13,12 +15,14 @@ import com.eeseka.lynk.lobby.api.dto.ws.OutgoingWebSocketMessageType
 import com.eeseka.lynk.lobby.api.dto.ws.inbound.*
 import com.eeseka.lynk.lobby.api.dto.ws.outbound.*
 import com.eeseka.lynk.lobby.api.mappers.toLiveLocationDto
+import com.eeseka.lynk.lobby.api.mappers.toVotingCandidateDto
 import com.eeseka.lynk.lobby.api.mappers.toVotingSnapshotDto
 import com.eeseka.lynk.lobby.api.websocket.LobbyHandshakeInterceptor.Companion.USER_ID_ATTRIBUTE
 import com.eeseka.lynk.lobby.domain.model.ProposeOutcome
+import com.eeseka.lynk.lobby.domain.model.RemoveOutcome
+import com.eeseka.lynk.lobby.domain.model.VotingCandidate
 import com.eeseka.lynk.lobby.service.LobbyLiveLocationService
 import com.eeseka.lynk.lobby.service.LobbyVotingService
-import com.eeseka.lynk.spot.api.mappers.toSpotDto
 import com.eeseka.lynk.spot.service.SpotService
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
@@ -54,6 +58,7 @@ class LobbyWebSocketHandler(
         private val LIVE_LOCATION_TIMEOUT = Duration.ofMinutes(15)
         private const val SEND_TIME_LIMIT_MS = 10_000
         private const val SEND_BUFFER_LIMIT_BYTES = 512 * 1024
+        private val SINGLE_LINE = Regex(ValidationPatterns.SINGLE_LINE)
     }
 
     private val logger = LoggerFactory.getLogger(javaClass)
@@ -194,7 +199,7 @@ class LobbyWebSocketHandler(
                         incomingMessage.payload,
                         ProposeSpotDto::class.java
                     )
-                    handleProposeSpot(userSession, dto.hangoutId, dto.spotId)
+                    handleProposeSpot(userSession, dto.hangoutId, dto.spotId, dto.note)
                 }
 
                 IncomingWebSocketMessageType.REMOVE_SPOT -> {
@@ -383,7 +388,6 @@ class LobbyWebSocketHandler(
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     fun onNonPayerRemoved(event: HangoutNonPayerRemovedEvent) {
-        unsubscribeUserFromHangout(event.userId, event.hangoutId)
         broadcastToHangout(
             hangoutId = event.hangoutId,
             message = OutgoingWebSocketMessage(
@@ -397,6 +401,25 @@ class LobbyWebSocketHandler(
                 )
             )
         )
+        unsubscribeUserFromHangout(event.userId, event.hangoutId)
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    fun onParticipantRemoved(event: HangoutParticipantRemovedEvent) {
+        broadcastToHangout(
+            hangoutId = event.hangoutId,
+            message = OutgoingWebSocketMessage(
+                type = OutgoingWebSocketMessageType.PARTICIPANT_REMOVED,
+                payload = objectMapper.writeValueAsString(
+                    LobbyParticipantDto(
+                        hangoutId = event.hangoutId,
+                        userId = event.userId,
+                        displayName = event.displayName
+                    )
+                )
+            )
+        )
+        unsubscribeUserFromHangout(event.userId, event.hangoutId)
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -669,13 +692,28 @@ class LobbyWebSocketHandler(
     }
 
     // Nominate a spot as a voting candidate: fetch its details, dedupe, cap, broadcast.
-    private fun handleProposeSpot(userSession: UserSession, hangoutId: HangoutId, spotId: String) {
+    private fun handleProposeSpot(userSession: UserSession, hangoutId: HangoutId, spotId: String, note: String?) {
         if (!attendsHangout(userSession.userId, hangoutId)) {
             sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
             return
         }
         if (!hangoutService.isVotingOpen(hangoutId)) {
             sendError(userSession.session, ErrorDto("VOTING_CLOSED", "Voting is not open for this hangout"))
+            return
+        }
+
+        val trimmedNote = note?.trim()?.takeIf { it.isNotEmpty() }
+        if (trimmedNote != null && trimmedNote.length > MAX_SPOT_NOTE_LENGTH) {
+            sendError(userSession.session, ErrorDto("NOTE_TOO_LONG", "A note can be at most $MAX_SPOT_NOTE_LENGTH characters"))
+            return
+        }
+        if (trimmedNote != null && !trimmedNote.matches(SINGLE_LINE)) {
+            sendError(userSession.session, ErrorDto("NOTE_NOT_ONE_LINE", "A note must be on one line"))
+            return
+        }
+
+        val displayName = hangoutParticipantService.findDisplayName(userSession.userId) ?: run {
+            sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
             return
         }
 
@@ -687,13 +725,20 @@ class LobbyWebSocketHandler(
             return
         }
 
-        when (lobbyVotingService.proposeSpot(hangoutId, spotId, spot)) {
+        val candidate = VotingCandidate(
+            spot = spot,
+            suggestedById = userSession.userId,
+            suggestedByDisplayName = displayName,
+            note = trimmedNote
+        )
+
+        when (lobbyVotingService.proposeSpot(hangoutId, candidate)) {
             ProposeOutcome.ADDED -> broadcastToHangout(
                 hangoutId = hangoutId,
                 message = OutgoingWebSocketMessage(
                     type = OutgoingWebSocketMessageType.CANDIDATE_ADDED,
                     payload = objectMapper.writeValueAsString(
-                        CandidateAddedDto(hangoutId = hangoutId, spot = spot.toSpotDto())
+                        CandidateAddedDto(hangoutId = hangoutId, candidate = candidate.toVotingCandidateDto())
                     )
                 )
             )
@@ -707,11 +752,12 @@ class LobbyWebSocketHandler(
         }
     }
 
-    // Host pulls a spot off the ballot (moderation, e.g., someone hogged the slots).
-    // Purges any votes for it so a removed spot can never win at close time, then rebroadcasts.
+    // Takes a spot off the ballot: the host moderating, or whoever suggested it changing their mind, even
+    // with votes on it. Purges any votes for it so a removed spot can never win at close time, then rebroadcasts.
     private fun handleRemoveSpot(userSession: UserSession, hangoutId: HangoutId, spotId: String) {
-        if (!hangoutService.isHost(hangoutId, userSession.userId)) {
-            sendError(userSession.session, ErrorDto("NOT_HOST", "Only the host can remove a spot"))
+        val isHost = hangoutService.isHost(hangoutId, userSession.userId)
+        if (!isHost && !attendsHangout(userSession.userId, hangoutId)) {
+            sendError(userSession.session, ErrorDto("NOT_ATTENDING", "You are not in this hangout"))
             return
         }
         if (!hangoutService.isVotingOpen(hangoutId)) {
@@ -719,11 +765,18 @@ class LobbyWebSocketHandler(
             return
         }
 
-        val votesSnapshot = lobbyVotingService.removeCandidate(hangoutId, spotId)
+        val votesSnapshot = when (val outcome = lobbyVotingService.removeCandidate(hangoutId, spotId, userSession.userId, isHost)) {
+            is RemoveOutcome.Removed -> outcome.votes
 
-        if (votesSnapshot == null) {
-            sendError(userSession.session, ErrorDto("NOT_A_CANDIDATE", "That spot isn't on the ballot"))
-            return
+            RemoveOutcome.NotACandidate -> {
+                sendError(userSession.session, ErrorDto("NOT_A_CANDIDATE", "That spot isn't on the ballot"))
+                return
+            }
+
+            RemoveOutcome.NotAllowed -> {
+                sendError(userSession.session, ErrorDto("NOT_SUGGESTER", "Only the host or whoever suggested a spot can remove it"))
+                return
+            }
         }
 
         broadcastToHangout(

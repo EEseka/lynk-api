@@ -41,6 +41,7 @@ class NotificationHangoutEventListener(
                 is HangoutEvent.ParticipantInvited -> onParticipantInvited(event)
                 is HangoutEvent.InviteCancelled -> onInviteCancelled(event)
                 is HangoutEvent.RemovedForNonPayment -> onRemovedForNonPayment(event)
+                is HangoutEvent.ParticipantRemoved -> onParticipantRemoved(event)
                 is HangoutEvent.ParticipantLeft -> onParticipantLeft(event)
                 is HangoutEvent.HangoutUpdated -> onHangoutUpdated(event)
                 is HangoutEvent.HangoutCompleted -> onHangoutCompleted(event)
@@ -104,6 +105,17 @@ class NotificationHangoutEventListener(
                 hostDisplayName = event.hostDisplayName
             )
         }
+    }
+
+    private fun onParticipantRemoved(event: HangoutEvent.ParticipantRemoved) {
+        notify(
+            recipientIds = setOf(event.participantId),
+            type = NotificationType.PARTICIPANT_REMOVED,
+            hangoutId = event.hangoutId,
+            hangoutName = event.hangoutName,
+            actorDisplayName = event.hostDisplayName,
+            message = "${event.hostDisplayName} removed you from this hangout"
+        )
     }
 
     private fun onParticipantLeft(event: HangoutEvent.ParticipantLeft) {

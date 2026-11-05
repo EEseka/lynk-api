@@ -1,5 +1,6 @@
 package com.eeseka.lynk.hangout.api.dto
 
+import com.eeseka.lynk.common.domain.ValidationPatterns.SINGLE_LINE
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_ATTENDEES
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_DESCRIPTION_LENGTH
 import com.eeseka.lynk.hangout.domain.HangoutConstants.MAX_NAME_LENGTH
@@ -9,12 +10,14 @@ import jakarta.validation.constraints.Future
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Pattern
 import org.hibernate.validator.constraints.Length
 import java.time.Instant
 
 data class CreateHangoutRequest(
     @field:NotBlank(message = "Name cannot be blank")
     @field:Length(max = MAX_NAME_LENGTH, message = "Name cannot exceed $MAX_NAME_LENGTH characters")
+    @field:Pattern(regexp = SINGLE_LINE, message = "Name must be on one line")
     val name: String,
     @field:Length(max = MAX_DESCRIPTION_LENGTH, message = "Description cannot exceed $MAX_DESCRIPTION_LENGTH characters")
     val description: String?,

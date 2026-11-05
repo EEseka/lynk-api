@@ -12,6 +12,7 @@ import com.eeseka.lynk.hangout.domain.event.HangoutNonPayerRemovedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutParticipantArrivedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutParticipantInvitedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutParticipantLeftEvent
+import com.eeseka.lynk.hangout.domain.event.HangoutParticipantRemovedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutPaymentReceivedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutRsvpUpdatedEvent
 import com.eeseka.lynk.hangout.domain.event.HangoutUpdatedEvent
@@ -25,6 +26,7 @@ import com.eeseka.lynk.hangout.domain.model.HangoutParticipant
 import com.eeseka.lynk.hangout.domain.model.HangoutStatus
 import com.eeseka.lynk.hangout.domain.model.PaymentState
 import com.eeseka.lynk.hangout.domain.model.RsvpStatus
+import com.eeseka.lynk.hangout.infra.database.entities.HangoutEntity
 import com.eeseka.lynk.hangout.infra.database.entities.HangoutParticipantEntity
 import com.eeseka.lynk.hangout.infra.database.mappers.toHangoutParticipant
 import com.eeseka.lynk.hangout.infra.database.repositories.HangoutParticipantRepository
@@ -63,6 +65,10 @@ class HangoutParticipantService(
             hangoutId = hangoutId,
             userId = userId
         )
+
+    // The name to credit for something someone did in the lobby, like suggesting a spot
+    fun findDisplayName(userId: UserId): String? =
+        hangoutUserRepository.findByIdOrNull(userId)?.displayName
 
     // Live lobby needs every hangout a user attends
     fun findAttendingHangoutIds(userId: UserId): List<HangoutId> =
@@ -263,7 +269,7 @@ class HangoutParticipantService(
     }
 
     @Transactional
-    fun withdrawParticipantInvite(
+    fun removeParticipant(
         hostId: UserId,
         hangoutId: HangoutId,
         targetUserId: UserId
@@ -274,20 +280,34 @@ class HangoutParticipantService(
             ?: throw HangoutNotFoundException(hangoutId.toString())
 
         if (hangout.hostId != hostId) {
-            throw HangoutAccessDeniedException("Only the host can withdraw invites.")
+            throw HangoutAccessDeniedException("Only the host can remove people.")
         }
 
-        if (hangout.status !in inviteOpenStatuses) {
-            throw HangoutIllegalStateException("Cannot change participants of a ${hangout.status.name.lowercase()} hangout.")
+        if (targetUserId == hostId) {
+            throw HangoutIllegalStateException("The host cannot be removed; cancel the hangout instead.")
         }
 
         val participant = hangout.participants.find { it.hangoutUser.userId == targetUserId }
             ?: throw HangoutParticipantNotFoundException(targetUserId.toString())
 
-        if (participant.rsvpStatus != RsvpStatus.PENDING) {
-            throw HangoutIllegalStateException("Only a pending invite can be withdrawn.")
+        when (participant.rsvpStatus) {
+            RsvpStatus.PENDING -> withdrawInvite(hangout, participant)
+            RsvpStatus.ATTENDING -> removeAttendee(hangout, participant)
+            RsvpStatus.DECLINED -> throw HangoutIllegalStateException("This person is not in this hangout.")
+        }
+    }
+
+    private fun withdrawInvite(
+        hangout: HangoutEntity,
+        participant: HangoutParticipantEntity
+    ) {
+        val hangoutId = hangout.id!!
+
+        if (hangout.status !in inviteOpenStatuses) {
+            throw HangoutIllegalStateException("Cannot change participants of a ${hangout.status.name.lowercase()} hangout.")
         }
 
+        val inviteeId = participant.hangoutUser.userId
         val withdrawnDisplayName = participant.hangoutUser.displayName
 
         hangout.participants.remove(participant)
@@ -301,7 +321,7 @@ class HangoutParticipantService(
             HangoutEvent.InviteCancelled(
                 hangoutId = hangoutId,
                 hangoutName = hangout.name,
-                inviteeId = targetUserId,
+                inviteeId = inviteeId,
                 hostDisplayName = hostDisplayName
             )
         )
@@ -309,8 +329,57 @@ class HangoutParticipantService(
         applicationEventPublisher.publishEvent(
             HangoutInviteWithdrawnEvent(
                 hangoutId = hangoutId,
-                userId = targetUserId,
+                userId = inviteeId,
                 displayName = withdrawnDisplayName
+            )
+        )
+    }
+
+    private fun removeAttendee(
+        hangout: HangoutEntity,
+        participant: HangoutParticipantEntity
+    ) {
+        val hangoutId = hangout.id!!
+
+        if (hangout.status !in openStatuses) {
+            throw HangoutIllegalStateException("Cannot remove someone from a ${hangout.status.name.lowercase()} hangout.")
+        }
+
+        val paymentState = hangout.payment?.state
+        if (participant.hasPaid && paymentState in setOf(PaymentState.PAYING_OUT, PaymentState.PAID_OUT)) {
+            throw HangoutIllegalStateException("Their payment has already been paid out, so they can't be removed.")
+        }
+
+        val removedId = participant.hangoutUser.userId
+        val removedDisplayName = participant.hangoutUser.displayName
+
+        hangout.participants.remove(participant)
+        hangoutRepository.save(
+            hangout.apply { participantCount -= 1 }
+        )
+
+        // They may have been the last one who still owed money, like someone leaving.
+        markReadyForPayoutIfEveryoneHasPaid(hangoutId)
+
+        // Host is always an ATTENDING participant, so first { } is safe and non-null.
+        val hostDisplayName = hangout.participants
+            .first { it.hangoutUser.userId == hangout.hostId }
+            .hangoutUser.displayName
+
+        eventPublisher.publish(
+            HangoutEvent.ParticipantRemoved(
+                hangoutId = hangoutId,
+                hangoutName = hangout.name,
+                participantId = removedId,
+                hostDisplayName = hostDisplayName
+            )
+        )
+
+        applicationEventPublisher.publishEvent(
+            HangoutParticipantRemovedEvent(
+                hangoutId = hangoutId,
+                userId = removedId,
+                displayName = removedDisplayName
             )
         )
     }
