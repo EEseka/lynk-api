@@ -124,6 +124,34 @@ class PayoutSweepTest : IntegrationTest() {
         assertEquals(PayoutStatus.IN_FLIGHT, payoutRepository.findAll().single().status)
     }
 
+    /**
+     * Someone left and their refund was claimed after the sweep counted their share. Sending the old
+     * total would pay the host money that is already on its way back to them.
+     */
+    @Test
+    fun `leaves out a share refunded after the sweep counted it`() {
+        val hangout = arrangeHangoutReadyForPayout(paidAttendees = 1)
+        val leaver = fixtures.user(displayName = "Bola")
+        fixtures.payment(
+            hangoutId = hangout.id!!,
+            userId = leaver.userId,
+            amountKobo = AMOUNT_KOBO,
+            status = PaymentStatus.REFUNDING,
+            paidAt = Instant.now()
+        )
+        val payout = fixtures.payout(hangoutId = hangout.id!!, amountKobo = AMOUNT_KOBO * 2)
+
+        payoutService.payHostsWhoAreDue()
+
+        then(paystackClient).should().transfer(
+            recipientCode = eq(RECIPIENT_CODE),
+            amountKobo = eq(AMOUNT_KOBO),
+            reference = eq(payout.reference),
+            reason = eq("Lynk hangout payout")
+        )
+        assertEquals(AMOUNT_KOBO, payoutRepository.findAll().single().amountKobo)
+    }
+
     @Test
     fun `leaves alone a hangout that is not ready to be paid out`() {
         val hangout = arrangeHangoutReadyForPayout(paidAttendees = 1, paymentState = PaymentState.COLLECTING)

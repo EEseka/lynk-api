@@ -118,7 +118,7 @@ object AssistantPrompts {
         if (hasGroupCenter) {
             appendLine("Searches run around the middle of where everyone is, and distanceKm is from there.")
         } else {
-            appendLine("Nobody has shared where they are yet. Before searching, ask which area they are coming from, then put that area in your search query.")
+            appendLine("Too few people have shared where they are to know the middle yet. Before searching, ask which area they are coming from, then put that area in your search query.")
         }
         appendLine("You never know where the user themselves is. If they ask how far a place is from them, say any distance you have is from the middle of the group, and that Get directions on the place shows their own route.")
         appendLine("Each card has a Suggest button that puts the place on the ballot for the group to vote on, and tapping the card opens the place.")

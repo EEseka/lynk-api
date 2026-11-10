@@ -193,6 +193,20 @@ class NotificationJourneyTest : IntegrationTest() {
         assertEquals(0, deviceTokenRepository.count())
     }
 
+    @Test
+    fun `will not forget a device that belongs to somebody else`() {
+        val ada = signIn("ada")
+        val bola = signIn("bola")
+        given(firebasePushNotificationClient.isValidToken(eq(DEVICE_TOKEN))).willReturn(true)
+        registerDevice(ada, DEVICE_TOKEN).andExpect { status { isOk() } }
+
+        mockMvc.delete("/api/notifications/$DEVICE_TOKEN") {
+            authenticatedAs(bola)
+        }.andExpect { status { isNoContent() } }
+
+        assertEquals(1, deviceTokenRepository.count())
+    }
+
     /** Registering a device is a write, and a guest may not write. */
     @Test
     fun `will not register a device for a guest`() {

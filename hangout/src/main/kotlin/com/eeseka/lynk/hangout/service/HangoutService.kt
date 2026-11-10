@@ -48,6 +48,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
@@ -600,6 +601,22 @@ class HangoutService(
      */
     fun findPaymentState(hangoutId: HangoutId): PaymentState? =
         hangoutRepository.findByIdOrNull(hangoutId)?.payment?.state
+
+    /**
+     * Runs [action] only while no payout has started. It locks the hangout row, the same lock
+     * markPayoutInFlight takes on its own, so a refund and a payout wait for each other instead of
+     * both taking the same money. Null when a payout has started.
+     * Its own transaction, because refunds are also claimed from AFTER_COMMIT listeners.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    fun <T> withRefundWindowOpen(hangoutId: HangoutId, action: () -> T): T? {
+        hangoutRepository.lockById(hangoutId)
+
+        val paymentState = hangoutRepository.findByIdOrNull(hangoutId)?.payment?.state
+        if (paymentState == PaymentState.PAYING_OUT || paymentState == PaymentState.PAID_OUT) return null
+
+        return action()
+    }
 
     /**
      * The hangout on its own, without the trip to Google for the spot. For callers that need the

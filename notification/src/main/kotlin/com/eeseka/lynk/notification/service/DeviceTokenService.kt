@@ -59,8 +59,8 @@ class DeviceTokenService(
     }
 
     @Transactional
-    fun unregisterDevice(token: String) {
-        deviceTokenRepository.deleteByToken(token.trim())
+    fun unregisterDevice(userId: UserId, token: String) {
+        deviceTokenRepository.deleteByUserIdAndToken(userId, token.trim())
     }
 
     @Transactional

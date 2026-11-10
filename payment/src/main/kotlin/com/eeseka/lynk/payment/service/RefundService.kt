@@ -198,19 +198,20 @@ class RefundService(
 
     private fun refund(payment: PaymentEntity, expectedStatus: PaymentStatus) {
         // One row changed means this call is the one that claimed the refund; zero means somebody else claimed it first and is already sending the money back.
-        val claimed = paymentRepository.transitionStatus(
-            paymentId = payment.id!!,
-            newStatus = PaymentStatus.REFUNDING,
-            expectedStatus = expectedStatus,
-            updatedAt = Instant.now()
-        ) == 1
-
-        if (!claimed) {
-            logger.info("A refund for {} is already in flight, leaving it alone", payment.reference)
-            return
+        val claimed = hangoutService.withRefundWindowOpen(payment.hangoutId) {
+            paymentRepository.transitionStatus(
+                paymentId = payment.id!!,
+                newStatus = PaymentStatus.REFUNDING,
+                expectedStatus = expectedStatus,
+                updatedAt = Instant.now()
+            ) == 1
         }
 
-        sendRefund(payment)
+        when (claimed) {
+            null -> logger.warn("Hangout {} started paying out before {} could be sent back", payment.hangoutId, payment.reference)
+            false -> logger.info("A refund for {} is already in flight, leaving it alone", payment.reference)
+            true -> sendRefund(payment)
+        }
     }
 
     private fun sendRefund(payment: PaymentEntity) {

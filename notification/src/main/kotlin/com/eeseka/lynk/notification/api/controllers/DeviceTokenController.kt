@@ -39,6 +39,6 @@ class DeviceTokenController(
     fun unregisterDeviceToken(
         @PathVariable @NotBlank token: String
     ) {
-        deviceTokenService.unregisterDevice(token)
+        deviceTokenService.unregisterDevice(userId = requestUserId, token = token)
     }
 }

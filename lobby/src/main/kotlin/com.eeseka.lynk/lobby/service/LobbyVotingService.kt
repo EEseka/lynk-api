@@ -13,10 +13,16 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
+import kotlin.math.round
 
 // Voting lives in memory only: the ballot, the votes and the shared locations per hangout.
 @Service
 class LobbyVotingService {
+
+    companion object {
+        private const val MIN_LOCATIONS_FOR_CENTER = 3
+        private const val CENTER_PRECISION = 200.0
+    }
 
     private val votingLock = ReentrantReadWriteLock()
 
@@ -75,9 +81,11 @@ class LobbyVotingService {
         }
     }
 
-    fun shareLocation(hangoutId: HangoutId, userId: UserId, latitude: Double, longitude: Double) {
-        votingLock.write {
+    fun shareLocation(hangoutId: HangoutId, userId: UserId, latitude: Double, longitude: Double): Boolean {
+        return votingLock.write {
+            val previousCenter = computeCenter(hangoutId)
             hangoutLocations.getOrPut(hangoutId) { mutableMapOf() }[userId] = Coordinates(latitude, longitude)
+            computeCenter(hangoutId) != previousCenter
         }
     }
 
@@ -92,7 +100,9 @@ class LobbyVotingService {
 
     fun removeLocation(hangoutId: HangoutId, userId: UserId): Boolean {
         return votingLock.write {
-            hangoutLocations[hangoutId]?.remove(userId) != null
+            val previousCenter = computeCenter(hangoutId)
+            hangoutLocations[hangoutId]?.remove(userId)
+            computeCenter(hangoutId) != previousCenter
         }
     }
 
@@ -122,14 +132,14 @@ class LobbyVotingService {
         return votingLock.read { computeCenter(hangoutId) }
     }
 
-    // Average of every shared location for this hangout, or null if none shared yet. Callers hold votingLock.
+    // Rounded average of every shared location, or null until enough people shared. Callers hold votingLock.
     private fun computeCenter(hangoutId: HangoutId): Coordinates? {
         val coordinates = hangoutLocations[hangoutId]?.values ?: return null
-        if (coordinates.isEmpty()) return null
+        if (coordinates.size < MIN_LOCATIONS_FOR_CENTER) return null
 
         return Coordinates(
-            latitude = coordinates.map { it.latitude }.average(),
-            longitude = coordinates.map { it.longitude }.average()
+            latitude = round(coordinates.map { it.latitude }.average() * CENTER_PRECISION) / CENTER_PRECISION,
+            longitude = round(coordinates.map { it.longitude }.average() * CENTER_PRECISION) / CENTER_PRECISION
         )
     }
 }
