@@ -163,6 +163,15 @@ class EnablePaymentsJourneyTest : IntegrationTest() {
             .andExpect { status { isBadRequest() } }
     }
 
+    @Test
+    fun `refuses a total bigger than the app lets anyone type`() {
+        val host = signIn("ada")
+        val hangoutId = arrangeHangoutWithAttendee(host)
+
+        enablePayments(host, hangoutId, totalCostKobo = 100_000_000_000L)
+            .andExpect { status { isBadRequest() } }
+    }
+
     private fun signIn(username: String): TestAccount = accounts.signIn(
         email = "$username@lynk.test",
         displayName = username.replaceFirstChar { it.uppercase() },

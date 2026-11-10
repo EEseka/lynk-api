@@ -183,6 +183,12 @@ class PayoutService(
             )
         hangoutService.markPayoutInFlight(hangoutId)
 
+        // Recount now that no refund can start, in case someone was refunded after the first count
+        val amountKobo = collectedKoboFor(hangoutId)
+        if (payout.amountKobo != amountKobo) {
+            payoutRepository.save(payout.apply { this.amountKobo = amountKobo })
+        }
+
         // Read again now the hangout is in flight: the host may have changed the account since the sweep began.
         val recipientCode = hangoutPayoutAccountRepository.findByHangoutId(hangoutId)?.recipientCode
             ?: throw PaymentIllegalStateException("This hangout has no payout account.")

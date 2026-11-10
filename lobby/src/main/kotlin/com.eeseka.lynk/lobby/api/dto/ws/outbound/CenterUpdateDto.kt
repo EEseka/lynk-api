@@ -4,6 +4,6 @@ import com.eeseka.lynk.common.domain.type.HangoutId
 
 data class CenterUpdateDto(
     val hangoutId: HangoutId,
-    val latitude: Double,
-    val longitude: Double
+    val latitude: Double?,
+    val longitude: Double?
 )

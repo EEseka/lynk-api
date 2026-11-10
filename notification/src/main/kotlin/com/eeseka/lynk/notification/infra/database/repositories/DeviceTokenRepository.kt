@@ -20,8 +20,8 @@ interface DeviceTokenRepository : JpaRepository<DeviceTokenEntity, Long> {
     fun updateOwnerByToken(token: String, userId: UserId, platform: Platform): Int
 
     @Modifying
-    @Query("DELETE FROM DeviceTokenEntity d WHERE d.token = :token")
-    fun deleteByToken(token: String)
+    @Query("DELETE FROM DeviceTokenEntity d WHERE d.userId = :userId AND d.token = :token")
+    fun deleteByUserIdAndToken(userId: UserId, token: String)
 
     @Modifying
     @Query("DELETE FROM DeviceTokenEntity d WHERE d.token IN :tokens")

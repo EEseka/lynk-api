@@ -1,8 +1,10 @@
 package com.eeseka.lynk.payment.api.dto
 
 import com.eeseka.lynk.payment.domain.PaymentConstants.ACCOUNT_NUMBER_PATTERN
+import com.eeseka.lynk.payment.domain.PaymentConstants.MAX_TOTAL_COST_KOBO
 import com.eeseka.lynk.payment.domain.PaymentConstants.NUBAN_LENGTH
 import jakarta.validation.constraints.Future
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Pattern
@@ -10,6 +12,7 @@ import java.time.Instant
 
 data class EnablePaymentsRequest(
     @field:Min(value = 1, message = "Total cost must be more than zero")
+    @field:Max(value = MAX_TOTAL_COST_KOBO, message = "Total cost can be at most 999,999,999.99 Naira")
     val totalCostKobo: Long,
     @field:Future(message = "Payment deadline must be in the future")
     val paymentDeadline: Instant,

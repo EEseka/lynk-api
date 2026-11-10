@@ -641,7 +641,7 @@ class LobbyWebSocketHandler(
         // longer belongs in the group center. Done before the socket check below, because they
         // may well have left over REST with the app closed and no session left to unwire.
         val votesSnapshot = lobbyVotingService.removeVote(hangoutId, userId)
-        val locationDropped = lobbyVotingService.removeLocation(hangoutId, userId)
+        val centerMoved = lobbyVotingService.removeLocation(hangoutId, userId)
 
         connectionLock.write {
             val sessionIds = userToSessions[userId] ?: return@write
@@ -678,16 +678,14 @@ class LobbyWebSocketHandler(
                 )
             )
         }
-        if (locationDropped) {
-            getCenterUpdate(hangoutId)?.let { center ->
-                broadcastToHangout(
-                    hangoutId = hangoutId,
-                    message = OutgoingWebSocketMessage(
-                        type = OutgoingWebSocketMessageType.CENTER_UPDATE,
-                        payload = objectMapper.writeValueAsString(center)
-                    )
+        if (centerMoved) {
+            broadcastToHangout(
+                hangoutId = hangoutId,
+                message = OutgoingWebSocketMessage(
+                    type = OutgoingWebSocketMessageType.CENTER_UPDATE,
+                    payload = objectMapper.writeValueAsString(getCenterUpdate(hangoutId))
                 )
-            }
+            )
         }
     }
 
@@ -895,14 +893,14 @@ class LobbyWebSocketHandler(
         if (!hangoutService.isVotingOpen(hangoutId)) return
         if (!isValidCoordinate(latitude, longitude)) return
 
-        lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
+        val centerMoved = lobbyVotingService.shareLocation(hangoutId, userSession.userId, latitude, longitude)
+        if (!centerMoved) return
 
-        val center = getCenterUpdate(hangoutId) ?: return
         broadcastToHangout(
             hangoutId = hangoutId,
             message = OutgoingWebSocketMessage(
                 type = OutgoingWebSocketMessageType.CENTER_UPDATE,
-                payload = objectMapper.writeValueAsString(center)
+                payload = objectMapper.writeValueAsString(getCenterUpdate(hangoutId))
             )
         )
     }
@@ -1024,13 +1022,13 @@ class LobbyWebSocketHandler(
         )
     }
 
-    private fun getCenterUpdate(hangoutId: HangoutId): CenterUpdateDto? {
-        val center = lobbyVotingService.getCenter(hangoutId) ?: return null
+    private fun getCenterUpdate(hangoutId: HangoutId): CenterUpdateDto {
+        val center = lobbyVotingService.getCenter(hangoutId)
 
         return CenterUpdateDto(
             hangoutId = hangoutId,
-            latitude = center.latitude,
-            longitude = center.longitude
+            latitude = center?.latitude,
+            longitude = center?.longitude
         )
     }
 
